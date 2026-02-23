@@ -12,11 +12,11 @@ import ShareableCard from "./ShareableCard";
 import PaymentGate from "./PaymentGate";
 
 const TOPICS = [
-  { id: "love", icon: "💘", name: "感情运", description: "塔罗 × 周易 × 五行 · 感情全维解读", price: "¥3.99" },
-  { id: "career", icon: "💼", name: "事业运", description: "塔罗 × 周易 × 五行 · 事业全维解读", price: "¥3.99" },
-  { id: "wealth", icon: "💰", name: "财运", description: "塔罗 × 周易 × 五行 · 财运全维解读", price: "¥3.99" },
-  { id: "health", icon: "🏥", name: "健康", description: "塔罗 × 周易 × 五行 · 身心能量分析", price: "¥2.99" },
-  { id: "social", icon: "🤝", name: "人际关系", description: "塔罗 × 周易 × 五行 · 社交场域解读", price: "¥2.99" },
+  { id: "love", icon: "💘", name: "感情运", description: "塔罗 × 周易 × 五行 · 感情全维解读", deepPrice: "¥3.99" },
+  { id: "career", icon: "💼", name: "事业运", description: "塔罗 × 周易 × 五行 · 事业全维解读", deepPrice: "¥3.99" },
+  { id: "wealth", icon: "💰", name: "财运", description: "塔罗 × 周易 × 五行 · 财运全维解读", deepPrice: "¥3.99" },
+  { id: "health", icon: "🏥", name: "健康", description: "塔罗 × 周易 × 五行 · 身心能量分析", deepPrice: "¥2.99" },
+  { id: "social", icon: "🤝", name: "人际关系", description: "塔罗 × 周易 × 五行 · 社交场域解读", deepPrice: "¥2.99" },
 ];
 
 export default function QuickDraw() {
@@ -232,7 +232,7 @@ export default function QuickDraw() {
                     <div className="text-xl mb-1">{topic.icon}</div>
                     <div className="text-foreground/70 text-xs font-bold mb-0.5">{topic.name}</div>
                     <div className="text-foreground/20 text-[9px] leading-tight">{topic.description}</div>
-                    <div className="text-neon-gold/50 text-[9px] font-mono mt-1">{topic.price}</div>
+                    <div className="text-neon-cyan/40 text-[9px] font-mono mt-1">免费起卦 →</div>
                   </motion.button>
                 ))}
               </div>
@@ -481,7 +481,7 @@ export default function QuickDraw() {
       <PaymentGate
         title={selectedTopic ? `${selectedTopic.name} · 三体解读` : "解锁完整解读"}
         description={selectedTopic ? `周易 × 五行 × 塔罗 三体融合解读` : `${selectedSpread?.name ?? ""} AI 深度解析`}
-        price={selectedTopic?.price ?? "¥1.99"}
+        price={selectedTopic?.deepPrice ?? "¥1.99"}
         visible={showPayment}
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}
