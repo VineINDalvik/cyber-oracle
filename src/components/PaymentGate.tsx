@@ -21,8 +21,8 @@ export default function PaymentGate({ title, description, price, visible, onClos
     if (visible) setCredits(getCredits().credits);
   }, [visible]);
 
-  const handleUseCredit = () => {
-    const result = useCredit();
+  const handleUseCredit = async () => {
+    const result = await useCredit();
     if (result.success) {
       setShowSuccess(true);
       setTimeout(() => {
@@ -32,9 +32,9 @@ export default function PaymentGate({ title, description, price, visible, onClos
     }
   };
 
-  const handleSimulatePay = () => {
-    addCredits(10);
-    setCredits(getCredits().credits + 10);
+  const handleSimulatePay = async () => {
+    const updated = await addCredits(10);
+    setCredits(updated.credits);
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
@@ -141,7 +141,7 @@ export default function PaymentGate({ title, description, price, visible, onClos
                     ].map((tier) => (
                       <motion.button
                         key={tier.amount}
-                        onClick={() => { addCredits(tier.amount); setCredits((c) => c + tier.amount); }}
+                        onClick={async () => { const u = await addCredits(tier.amount); setCredits(u.credits); }}
                         className="relative py-3 rounded-lg glass text-center cursor-pointer"
                         whileTap={{ scale: 0.95 }}
                       >

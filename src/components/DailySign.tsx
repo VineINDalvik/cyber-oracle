@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getDailySign, getTodayDateString } from "@/lib/tarot";
-import { recordCardSeen, recordReading, dailyCheckin } from "@/lib/collection";
+import { recordCardSeen, recordReading, dailyCheckin, syncToServer } from "@/lib/collection";
 import CardFace from "./CardFace";
 import ShareableCard from "./ShareableCard";
 import PaymentGate from "./PaymentGate";
@@ -21,8 +21,10 @@ export default function DailySign() {
   const [showPayment, setShowPayment] = useState(false);
 
   useEffect(() => {
-    recordCardSeen(result.card.id);
-    dailyCheckin(dateStr);
+    syncToServer().then(() => {
+      recordCardSeen(result.card.id);
+      dailyCheckin(dateStr);
+    });
   }, [result.card.id, dateStr]);
 
   const requestReading = () => {

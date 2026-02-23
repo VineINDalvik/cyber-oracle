@@ -21,11 +21,11 @@ export default function CollectionBar({ dateStr }: CollectionBarProps) {
     setCredits(getCredits().credits);
   }, []);
 
-  const handleCheckin = () => {
-    const result = dailyCheckin(dateStr);
+  const handleCheckin = async () => {
+    const result = await dailyCheckin(dateStr);
     if (result.isNew) {
       if (result.streakReward) {
-        addCredits(1);
+        await addCredits(1);
         setCredits((c) => c + 1);
         setCheckinMsg(`连续签到 ${result.data.checkinStreak} 天！奖励 1 灵力 ✨`);
       } else {
