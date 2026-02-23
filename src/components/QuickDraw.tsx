@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  SPREAD_TYPES, drawSpread, castTopicFortune, getTodayDateString,
-  type SpreadType, type SpreadResult, type Hexagram, type GanZhi,
+  SPREAD_TYPES, drawSpread, castTopicFortune, generateBriefReading, getTodayDateString,
+  type SpreadType, type SpreadResult, type Hexagram, type GanZhi, type TopicFortune,
 } from "@/lib/tarot";
 import { recordCardSeen, recordReading } from "@/lib/collection";
 import CardFace, { CardBack } from "./CardFace";
@@ -31,6 +31,8 @@ export default function QuickDraw() {
   const [hexagram, setHexagram] = useState<Hexagram | null>(null);
   const [wuxingAnalysis, setWuxingAnalysis] = useState("");
   const [topicGanZhi, setTopicGanZhi] = useState<GanZhi | null>(null);
+  const [topicFortune, setTopicFortune] = useState<TopicFortune | null>(null);
+  const [briefReading, setBriefReading] = useState("");
 
   const [showReading, setShowReading] = useState(false);
   const [reading, setReading] = useState("");
@@ -59,6 +61,7 @@ export default function QuickDraw() {
     setPhase("shuffling");
 
     const fortune = castTopicFortune(topic.id, timelineSpread);
+    setTopicFortune(fortune);
     setSpreadResult(fortune.spread);
     setHexagram(fortune.hexagram);
     setWuxingAnalysis(fortune.wuxingAnalysis);
@@ -76,9 +79,14 @@ export default function QuickDraw() {
   useEffect(() => {
     if (!selectedSpread || phase !== "revealing") return;
     if (revealedIndices.size === selectedSpread.cardCount) {
-      setTimeout(() => setPhase("revealed"), 600);
+      setTimeout(() => {
+        setPhase("revealed");
+        if (selectedTopic && topicFortune) {
+          setBriefReading(generateBriefReading(topicFortune, selectedTopic.name));
+        }
+      }, 600);
     }
-  }, [revealedIndices, selectedSpread, phase]);
+  }, [revealedIndices, selectedSpread, phase, selectedTopic, topicFortune]);
 
   const reset = () => {
     setView("menu");
@@ -90,6 +98,8 @@ export default function QuickDraw() {
     setHexagram(null);
     setWuxingAnalysis("");
     setTopicGanZhi(null);
+    setTopicFortune(null);
+    setBriefReading("");
     setReading("");
     setShowReading(false);
   };
@@ -374,30 +384,79 @@ export default function QuickDraw() {
             {/* Actions */}
             {phase === "revealed" && (
               <motion.div className="w-full max-w-sm space-y-3 mt-4" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
-                {!showReading && !reading && (
+
+                {/* ─── Topic: 免费简读（直接展示） ─── */}
+                {selectedTopic && briefReading && (
+                  <div className="p-4 rounded-xl glass">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-neon-cyan/60 text-[9px] font-mono px-2 py-0.5 rounded bg-neon-cyan/5 border border-neon-cyan/10">简读</span>
+                      <span className="text-foreground/20 text-[9px] font-mono">FREE</span>
+                    </div>
+                    <div className="text-sm leading-7 text-foreground/60 whitespace-pre-wrap">{briefReading}</div>
+                  </div>
+                )}
+
+                {/* ─── Topic: 付费深度解读引导 ─── */}
+                {selectedTopic && !reading && (
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-neon-gold/5 to-neon-purple/5 border border-dashed border-neon-gold/15">
+                    <p className="text-foreground/40 text-xs leading-relaxed text-center mb-2">
+                      以上是三体基础解读。想知道{hexagram?.name}卦 × {topicGanZhi?.wuxingElement}行 × 塔罗牌的<span className="text-neon-gold/70">交叉共振分析</span>、<span className="text-neon-gold/70">具体行动建议</span>和<span className="text-neon-gold/70">时机判断</span>吗？
+                    </p>
+                    <motion.button
+                      onClick={requestReading}
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-neon-gold/15 to-neon-purple/15 border border-neon-gold/20 text-neon-gold text-xs font-mono cursor-pointer"
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      🔮 解锁 AI 深度解读
+                    </motion.button>
+                  </div>
+                )}
+
+                {/* ─── Spread (非 topic): 保持原逻辑 ─── */}
+                {!selectedTopic && !showReading && !reading && (
                   <div className="p-3 rounded-xl bg-gradient-to-r from-neon-cyan/5 to-neon-purple/5 border border-dashed border-neon-cyan/10">
                     <p className="text-foreground/40 text-xs leading-relaxed">
-                      {selectedTopic && hexagram
-                        ? `${hexagram.name}卦 × ${topicGanZhi?.wuxingElement}行 × 塔罗三牌……三套命理体系的交叉解读即将揭示你的${selectedTopic.name}走向`
-                        : `${selectedSpread.name}牌阵已完成。${spreadResult.cards.length}张牌的能量交织中隐藏着什么信号？`}
+                      {selectedSpread.name}牌阵已完成。{spreadResult.cards.length}张牌的能量交织中隐藏着什么信号？
                     </p>
                   </div>
                 )}
-                <div className="flex gap-3">
-                  <motion.button onClick={requestReading} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>
-                    {reading ? (showReading ? "📖 收起" : "📖 查看") : "🔓 解锁完整解读"}
-                  </motion.button>
-                  {shareResult && (
-                    <motion.button onClick={() => setShowShare(true)} className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾</motion.button>
-                  )}
-                </div>
+                {!selectedTopic && (
+                  <div className="flex gap-3">
+                    <motion.button onClick={requestReading} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>
+                      {reading ? (showReading ? "📖 收起" : "📖 查看") : "🔓 解锁完整解读"}
+                    </motion.button>
+                    {shareResult && (
+                      <motion.button onClick={() => setShowShare(true)} className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾</motion.button>
+                    )}
+                  </div>
+                )}
+
+                {/* ─── Topic: AI 深度解读已解锁后的按钮 ─── */}
+                {selectedTopic && reading && (
+                  <div className="flex gap-3">
+                    <motion.button onClick={() => setShowReading(!showReading)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-gold/15 to-neon-purple/15 border border-neon-gold/20 text-neon-gold text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>
+                      {showReading ? "📖 收起深度解读" : "📖 查看深度解读"}
+                    </motion.button>
+                    {shareResult && (
+                      <motion.button onClick={() => setShowShare(true)} className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾</motion.button>
+                    )}
+                  </div>
+                )}
+
                 <button onClick={reset} className="w-full text-foreground/15 text-xs font-mono cursor-pointer text-center py-1">⟳ 返回</button>
               </motion.div>
             )}
 
+            {/* AI 深度解读 */}
             <AnimatePresence>
               {showReading && (
                 <motion.div className="w-full max-w-sm mt-4 p-4 rounded-xl glass" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+                  {selectedTopic && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-neon-gold/60 text-[9px] font-mono px-2 py-0.5 rounded bg-neon-gold/5 border border-neon-gold/10">AI 深度解读</span>
+                      <span className="text-foreground/15 text-[9px] font-mono">三体融合</span>
+                    </div>
+                  )}
                   {reading ? (
                     <div className="text-sm leading-7 text-foreground/70 whitespace-pre-wrap">
                       {reading}

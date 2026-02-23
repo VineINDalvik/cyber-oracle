@@ -705,3 +705,28 @@ export function castTopicFortune(topicId: string, spread: SpreadType, seed?: num
 
   return { hexagram, wuxingAnalysis, ganZhi: gz, spread: spreadResult };
 }
+
+// ─── 免费简读（客户端生成，零 API 开销）────────────────────────
+
+export function generateBriefReading(fortune: TopicFortune, topicName: string): string {
+  const { hexagram, wuxingAnalysis, spread } = fortune;
+
+  const cardLines = spread.cards.map((c) => {
+    const state = c.isReversed ? "逆位" : "正位";
+    const meaning = c.isReversed ? c.card.reversed : c.card.upright;
+    return `▸ ${c.position.name}「赛博·${c.card.name}」${state}：${meaning}`;
+  });
+
+  const sections = [
+    `☰ ${hexagram.name}卦 · ${hexagram.nature}`,
+    `${hexagram.keywords}`,
+    ``,
+    `☯ 今日五行 · ${topicName}`,
+    wuxingAnalysis,
+    ``,
+    `🃏 塔罗牌面`,
+    ...cardLines,
+  ];
+
+  return sections.join("\n");
+}
