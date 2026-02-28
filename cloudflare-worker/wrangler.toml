@@ -1,0 +1,13 @@
+name = "cyber-oracle-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Git 集成部署时：请把 Cloudflare Worker 的 Root directory 指到本目录
+# 然后在 Cloudflare Dashboard → Workers → Routes 里绑定：
+#   cyber.vinex.top/*  →  本 worker
+#
+# 若你更想写到配置里（wrangler deploy 时用），可取消注释：
+# routes = [
+#   { pattern = "cyber.vinex.top/*", zone_name = "vinex.top" }
+# ]
+
