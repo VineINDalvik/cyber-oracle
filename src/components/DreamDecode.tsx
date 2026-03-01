@@ -202,7 +202,7 @@ export default function DreamDecode() {
                   className="w-full py-4 rounded-xl bg-gradient-to-r from-neon-purple/15 to-neon-pink/15 border border-neon-purple/20 text-neon-purple text-sm font-mono cursor-pointer mb-3"
                   whileTap={{ scale: 0.98 }}
                 >
-                  🔓 解锁梦境解读
+                  📖 查看梦境解读
                 </motion.button>
               </>
             ) : (
@@ -243,7 +243,7 @@ export default function DreamDecode() {
       <PaymentGate
         title="梦境解码"
         description="周公解梦 × 塔罗原型 双重解析"
-        price="¥1.99"
+        price=""
         visible={showPayment}
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}

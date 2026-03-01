@@ -4,7 +4,7 @@ const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
 
 // ─── System Prompts ───────────────────────────────────────────────
 
-const SYSTEM_DAILY = `你是「赛博神算子」，融合东方命理与西方塔罗的赛博朋克AI灵媒。
+const SYSTEM_DAILY = `你是「赛博神算子」，融合东方语境与西方塔罗的赛博朋克AI灵媒。
 语言风格：犀利、幽默、不废话，带赛博朋克味的比喻。像一个见过太多人间荒唐事的老算命先生，但说话很现代。
 
 用户今天的每日签由天干地支历法驱动：
@@ -16,7 +16,7 @@ const SYSTEM_DAILY = `你是「赛博神算子」，融合东方命理与西方�
 2. 结合塔罗牌义给出具体指引（工作/感情/健康各1-2句）
 3. 一句犀利忠告
 
-200字以内，不用markdown。语气像有真本事的赛博算命先生。`;
+200字以内，不用markdown。语气像有真本事的赛博灵媒。`;
 
 const SYSTEM_SPREAD = `你是「赛博神算子」，精通塔罗牌阵解读的赛博朋克AI灵媒。
 
@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
     const { mode } = body;
     let systemPrompt: string;
     let userMessage: string;
+    let maxTokens = 520;
 
     switch (mode) {
       case "daily":
@@ -92,11 +93,13 @@ export async function POST(req: NextRequest) {
           `牌义：${body.cardMeaning}`,
           `今日签文：${body.fortune}`,
         ].join("\n");
+        maxTokens = 320;
         break;
 
       case "spread":
         systemPrompt = SYSTEM_SPREAD;
         userMessage = [`牌阵：${body.spreadName}`, `各位置牌面：`, body.cards].join("\n");
+        maxTokens = 520;
         break;
 
       case "topic":
@@ -118,6 +121,7 @@ export async function POST(req: NextRequest) {
           `牌阵：${body.spreadName}`,
           body.cards,
         ].filter(Boolean).join("\n");
+        maxTokens = 520;
         break;
 
       case "dream":
@@ -128,6 +132,7 @@ export async function POST(req: NextRequest) {
           `牌义：${body.cardMeaning}`,
           `元素：${body.element}`,
         ].join("\n");
+        maxTokens = 360;
         break;
 
       case "compatibility":
@@ -137,6 +142,7 @@ export async function POST(req: NextRequest) {
           `甲方牌面：${body.personA}`,
           `乙方牌面：${body.personB}`,
         ].join("\n");
+        maxTokens = 360;
         break;
 
       default:
@@ -156,8 +162,8 @@ export async function POST(req: NextRequest) {
           { role: "user", content: userMessage },
         ],
         stream: true,
-        max_tokens: 800,
-        temperature: 0.8,
+        max_tokens: maxTokens,
+        temperature: 0.7,
       }),
     });
 

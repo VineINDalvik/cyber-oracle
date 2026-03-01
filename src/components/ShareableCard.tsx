@@ -112,7 +112,7 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
                 <div className="flex flex-col items-center">
                   <div className="p-1.5 bg-white rounded-md">
                     <QRCodeSVG
-                      value={shareUrl || "https://cyber-oracle.vercel.app"}
+                      value={shareUrl || "https://cyber.vinex.top"}
                       size={48}
                       level="L"
                     />

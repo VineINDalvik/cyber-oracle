@@ -167,7 +167,7 @@ export default function DailySign() {
           className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-xs font-mono cursor-pointer"
           whileTap={{ scale: 0.98 }}
         >
-          {reading ? (showReading ? "📖 收起" : "📖 查看") : "🔓 完整解读"}
+          {reading ? (showReading ? "📖 收起" : "📖 查看") : "📖 完整解读"}
         </motion.button>
         <motion.button
           onClick={() => setShowShare(true)}
@@ -211,7 +211,7 @@ export default function DailySign() {
       <PaymentGate
         title="每日签完整解读"
         description={`${gz.gan}${gz.zhi}日 × 赛博·${result.card.name} 深度解析`}
-        price="¥1.99"
+        price=""
         visible={showPayment}
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}

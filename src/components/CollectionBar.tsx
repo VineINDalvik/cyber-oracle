@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getCollectionStats, dailyCheckin, getCredits, addCredits } from "@/lib/collection";
+import { getCollectionStats, dailyCheckin } from "@/lib/collection";
 import type { CollectionData } from "@/lib/collection";
 
 interface CollectionBarProps {
@@ -14,23 +14,15 @@ export default function CollectionBar({ dateStr }: CollectionBarProps) {
   const [stats, setStats] = useState<CollectionData | null>(null);
   const [showPanel, setShowPanel] = useState(false);
   const [checkinMsg, setCheckinMsg] = useState<string | null>(null);
-  const [credits, setCredits] = useState(0);
 
   useEffect(() => {
     setStats(getCollectionStats());
-    setCredits(getCredits().credits);
   }, []);
 
   const handleCheckin = async () => {
     const result = await dailyCheckin(dateStr);
     if (result.isNew) {
-      if (result.streakReward) {
-        await addCredits(1);
-        setCredits((c) => c + 1);
-        setCheckinMsg(`连续签到 ${result.data.checkinStreak} 天！奖励 1 灵力 ✨`);
-      } else {
-        setCheckinMsg(`签到成功！连续 ${result.data.checkinStreak} 天 📅`);
-      }
+      setCheckinMsg(`签到成功！连续 ${result.data.checkinStreak} 天 📅`);
       setStats(result.data);
     } else {
       setCheckinMsg("今天已签到 ✓");
@@ -59,7 +51,7 @@ export default function CollectionBar({ dateStr }: CollectionBarProps) {
         <div className="flex-1">
           <div className="flex items-center justify-between mb-1">
             <span className="text-foreground/30 text-[9px] font-mono">塔罗图鉴 {collected}/{total}</span>
-            <span className="text-neon-gold/50 text-[9px] font-mono">⚡{credits} 灵力</span>
+            <span className="text-foreground/15 text-[9px] font-mono">{pct}%</span>
           </div>
           <div className="w-full h-1 bg-foreground/5 rounded-full overflow-hidden">
             <motion.div
@@ -101,8 +93,6 @@ export default function CollectionBar({ dateStr }: CollectionBarProps) {
             <div className="flex items-center justify-between mb-3">
               <div className="text-foreground/30 text-[10px] font-mono">
                 连续签到 {stats.checkinStreak} 天
-                {stats.checkinStreak > 0 && stats.checkinStreak % 7 !== 0 &&
-                  ` · 再签 ${7 - (stats.checkinStreak % 7)} 天得灵力`}
               </div>
               <motion.button
                 onClick={(e) => { e.stopPropagation(); handleCheckin(); }}
@@ -147,7 +137,7 @@ export default function CollectionBar({ dateStr }: CollectionBarProps) {
                 总解读 {stats.totalReadings} 次
               </span>
               <span className="text-foreground/15 text-[9px] font-mono">
-                集齐 22 张解锁「赛博命运之眼」
+                集齐 22 张点亮「赛博命运之眼」
               </span>
             </div>
           </motion.div>

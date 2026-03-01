@@ -400,7 +400,7 @@ export default function Compatibility() {
               className="w-full py-4 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-sm font-mono cursor-pointer mb-3"
               whileTap={{ scale: 0.98 }}
             >
-              🔓 解锁合盘解读（¥4.99）
+              📖 查看合盘解读
             </motion.button>
 
             <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer">
@@ -453,7 +453,7 @@ export default function Compatibility() {
       <PaymentGate
         title={`${topic?.name ?? "合盘"}解读`}
         description="两张牌的命运交织，AI 深度解析"
-        price="¥4.99"
+        price=""
         visible={showPayment}
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}

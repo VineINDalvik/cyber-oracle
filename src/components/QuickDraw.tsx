@@ -12,11 +12,11 @@ import ShareableCard from "./ShareableCard";
 import PaymentGate from "./PaymentGate";
 
 const TOPICS = [
-  { id: "love", icon: "💘", name: "感情运", description: "塔罗 × 周易 × 五行 · 感情全维解读", deepPrice: "¥3.99" },
-  { id: "career", icon: "💼", name: "事业运", description: "塔罗 × 周易 × 五行 · 事业全维解读", deepPrice: "¥3.99" },
-  { id: "wealth", icon: "💰", name: "财运", description: "塔罗 × 周易 × 五行 · 财运全维解读", deepPrice: "¥3.99" },
-  { id: "health", icon: "🏥", name: "健康", description: "塔罗 × 周易 × 五行 · 身心能量分析", deepPrice: "¥2.99" },
-  { id: "social", icon: "🤝", name: "人际关系", description: "塔罗 × 周易 × 五行 · 社交场域解读", deepPrice: "¥2.99" },
+  { id: "love", icon: "💘", name: "感情运", description: "塔罗 × 周易 × 五行 · 感情全维解读" },
+  { id: "career", icon: "💼", name: "事业运", description: "塔罗 × 周易 × 五行 · 事业全维解读" },
+  { id: "wealth", icon: "💰", name: "财运", description: "塔罗 × 周易 × 五行 · 财运全维解读" },
+  { id: "health", icon: "🏥", name: "健康", description: "塔罗 × 周易 × 五行 · 身心能量分析" },
+  { id: "social", icon: "🤝", name: "人际关系", description: "塔罗 × 周易 × 五行 · 社交场域解读" },
 ];
 
 export default function QuickDraw() {
@@ -217,7 +217,7 @@ export default function QuickDraw() {
               <div className="flex items-center gap-2 mb-3">
                 <div className="text-foreground/20 text-[10px] font-mono tracking-widest">FORTUNE READING</div>
                 <span className="text-neon-gold/60 text-[8px] font-mono px-1.5 py-0.5 rounded bg-neon-gold/5 border border-neon-gold/15">
-                  算命 × 塔罗
+                  主题占卜
                 </span>
               </div>
 
@@ -407,7 +407,7 @@ export default function QuickDraw() {
                       className="w-full py-3 rounded-xl bg-gradient-to-r from-neon-gold/15 to-neon-purple/15 border border-neon-gold/20 text-neon-gold text-xs font-mono cursor-pointer"
                       whileTap={{ scale: 0.98 }}
                     >
-                      🔮 解锁 AI 深度解读
+                      🔮 查看 AI 深度解读
                     </motion.button>
                   </div>
                 )}
@@ -423,7 +423,7 @@ export default function QuickDraw() {
                 {!selectedTopic && (
                   <div className="flex gap-3">
                     <motion.button onClick={requestReading} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>
-                      {reading ? (showReading ? "📖 收起" : "📖 查看") : "🔓 解锁完整解读"}
+                      {reading ? (showReading ? "📖 收起" : "📖 查看") : "📖 查看完整解读"}
                     </motion.button>
                     {shareResult && (
                       <motion.button onClick={() => setShowShare(true)} className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾</motion.button>
@@ -479,9 +479,9 @@ export default function QuickDraw() {
       </AnimatePresence>
 
       <PaymentGate
-        title={selectedTopic ? `${selectedTopic.name} · 三体解读` : "解锁完整解读"}
+        title={selectedTopic ? `${selectedTopic.name} · 三体解读` : "完整解读"}
         description={selectedTopic ? `周易 × 五行 × 塔罗 三体融合解读` : `${selectedSpread?.name ?? ""} AI 深度解析`}
-        price={selectedTopic?.deepPrice ?? "¥1.99"}
+        price=""
         visible={showPayment}
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}
