@@ -123,6 +123,18 @@ export default function Compatibility() {
     if (codeInput.length < 3) return;
     const code = codeInput.toUpperCase();
     setShareCode(code);
+
+    // Built-in mock to preview UI quickly
+    if (code === "DEMO") {
+      const t = COMPAT_TOPICS[0];
+      setTopic(t);
+      const aCard = MAJOR_ARCANA[6]; // Lovers-ish vibe
+      setAResult({ cards: [{ card: aCard, isReversed: false, position: spread.positions[0] }] });
+      setARevealed(new Set([0]));
+      setPhase("b-draw");
+      return;
+    }
+
     fetch(`/api/compat/session/${encodeURIComponent(code)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("not found"))))
       .then((s) => {
