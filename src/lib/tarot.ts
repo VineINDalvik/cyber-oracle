@@ -474,9 +474,9 @@ export function getTodayDateString(): string {
 /**
  * Daily sign derived from the day's 天干地支.
  * 五行 determines which elemental group of cards to draw from.
- * Everyone gets the same card on the same day.
+ * By default it's deterministic; when a seed is provided, it becomes device/profile-personalized.
  */
-export function getDailySign(dateStr?: string, localSeed?: number): DrawnResult & { ganZhi: GanZhi } {
+export function getDailySign(dateStr?: string, seed?: number | string): DrawnResult & { ganZhi: GanZhi } {
   const date = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
   const gz = getDayGanZhi(date);
 
@@ -485,12 +485,13 @@ export function getDailySign(dateStr?: string, localSeed?: number): DrawnResult 
 
   // Use 干支 index combo as seed for deterministic selection
   const daySeed = gz.ganIndex * 12 + gz.zhiIndex;
-  const rng = new SeededRandom(daySeed + hashString(dateStr ?? getTodayDateString()));
+  const seedNum = typeof seed === "string" ? hashString(seed) : (seed ?? 0);
+  const rng = new SeededRandom(daySeed + hashString(`${dateStr ?? getTodayDateString()}:${seedNum}`));
 
   const card = elementCards[rng.nextInt(elementCards.length)];
   const isReversed = rng.next() < 0.2;
 
-  const personalRng = new SeededRandom(daySeed + (localSeed ?? 0));
+  const personalRng = new SeededRandom(daySeed + seedNum + card.id * 97);
   const fortune = card.dailyFortunes[personalRng.nextInt(card.dailyFortunes.length)];
   const label = card.labels[personalRng.nextInt(card.labels.length)];
 

@@ -4,14 +4,23 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getDailySign, getTodayDateString } from "@/lib/tarot";
 import { recordCardSeen, recordReading, dailyCheckin, syncToServer } from "@/lib/collection";
-import CardFace from "./CardFace";
+import CardFace, { CardBack } from "./CardFace";
 import ShareableCard from "./ShareableCard";
 import PaymentGate from "./PaymentGate";
 import CollectionBar from "./CollectionBar";
+import { getOrCreateDeviceId, getProfile, setProfile, profileSeedString, type UserProfile } from "@/lib/device-profile";
 
 export default function DailySign() {
   const dateStr = getTodayDateString();
-  const result = useMemo(() => getDailySign(dateStr), [dateStr]);
+  const [profileVersion, setProfileVersion] = useState(0);
+  const [picked, setPicked] = useState(false);
+  const [pickedIndex, setPickedIndex] = useState<number | null>(null);
+  const seed = useMemo(() => {
+    const deviceId = getOrCreateDeviceId();
+    const p = getProfile();
+    return profileSeedString(deviceId, dateStr, p);
+  }, [dateStr, profileVersion]);
+  const result = useMemo(() => getDailySign(dateStr, seed), [dateStr, seed]);
   const { ganZhi: gz } = result;
 
   const [showReading, setShowReading] = useState(false);
@@ -19,6 +28,19 @@ export default function DailySign() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<UserProfile>(() => getProfile());
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(`co_daily_picked_${dateStr}`);
+      if (raw) {
+        const n = Number(window.localStorage.getItem(`co_daily_pick_${dateStr}`));
+        if (Number.isFinite(n)) setPickedIndex(n);
+        setPicked(true);
+      }
+    } catch {}
+  }, [dateStr]);
 
   useEffect(() => {
     syncToServer().then(() => {
@@ -30,6 +52,11 @@ export default function DailySign() {
   const requestReading = () => {
     if (reading) { setShowReading(!showReading); return; }
     setShowPayment(true);
+  };
+
+  const openHiddenProfile = () => {
+    setEditingProfile(getProfile());
+    setShowProfile(true);
   };
 
   const doFetchReading = async () => {
@@ -108,7 +135,35 @@ export default function DailySign() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.1 }}
       >
-        <CardFace cardId={result.card.id} reversed={result.isReversed} size="lg" />
+        {picked ? (
+          <CardFace cardId={result.card.id} reversed={result.isReversed} size="lg" />
+        ) : (
+          <div className="flex flex-col items-center">
+            <div className="flex gap-2">
+              {Array.from({ length: 5 }, (_, i) => (
+                <motion.button
+                  key={i}
+                  onClick={() => {
+                    setPicked(true);
+                    setPickedIndex(i);
+                    try {
+                      window.localStorage.setItem(`co_daily_picked_${dateStr}`, "1");
+                      window.localStorage.setItem(`co_daily_pick_${dateStr}`, String(i));
+                    } catch {}
+                  }}
+                  className="cursor-pointer"
+                  whileTap={{ scale: 0.96 }}
+                  aria-label={`pick-${i}`}
+                >
+                  <CardBack size="sm" />
+                </motion.button>
+              ))}
+            </div>
+            <div className="text-foreground/30 text-[10px] font-mono mt-3">
+              选一张，看看今天你的签
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Fortune text (free) */}
@@ -142,7 +197,7 @@ export default function DailySign() {
       </motion.div>
 
       {/* Teaser for paid reading */}
-      {!reading && (
+      {!reading && picked && (
         <motion.div
           className="w-full max-w-xs p-3 rounded-xl bg-gradient-to-r from-neon-cyan/5 to-neon-purple/5 border border-dashed border-neon-cyan/10 mb-4"
           initial={{ opacity: 0 }}
@@ -163,14 +218,21 @@ export default function DailySign() {
         transition={{ delay: 0.6 }}
       >
         <motion.button
-          onClick={requestReading}
+          onClick={() => {
+            if (!picked) return;
+            requestReading();
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            openHiddenProfile();
+          }}
           className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-xs font-mono cursor-pointer"
           whileTap={{ scale: 0.98 }}
         >
-          {reading ? (showReading ? "📖 收起" : "📖 查看") : "📖 完整解读"}
+          {picked ? (reading ? (showReading ? "📖 收起" : "📖 查看") : "📖 完整解读") : "先选牌"}
         </motion.button>
         <motion.button
-          onClick={() => setShowShare(true)}
+          onClick={() => (picked ? setShowShare(true) : null)}
           className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer"
           whileTap={{ scale: 0.98 }}
         >
@@ -216,6 +278,126 @@ export default function DailySign() {
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}
       />
+
+      {/* Hidden profile/settings (right-click the button) */}
+      <AnimatePresence>
+        {showProfile && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowProfile(false)}
+          >
+            <motion.div
+              className="w-full max-w-lg rounded-t-3xl overflow-hidden bg-surface border border-card-border"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 pt-5 pb-4 border-b border-foreground/5">
+                <div className="text-sm font-bold neon-text text-center">隐藏个性化设置</div>
+                <div className="text-[10px] text-foreground/30 font-mono text-center mt-1">
+                  不填也能用；填了会影响“你今天抽到哪张牌”
+                </div>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-foreground/30 text-[10px] font-mono">睡眠</div>
+                    <select
+                      value={editingProfile.sleep ?? ""}
+                      onChange={(e) => setEditingProfile((p) => ({ ...p, sleep: (e.target.value || undefined) as any }))}
+                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none"
+                    >
+                      <option value="">不设置</option>
+                      <option value="good">睡得好</option>
+                      <option value="ok">一般</option>
+                      <option value="bad">没睡好</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-foreground/30 text-[10px] font-mono">压力</div>
+                    <select
+                      value={editingProfile.stress ?? ""}
+                      onChange={(e) => setEditingProfile((p) => ({ ...p, stress: (e.target.value || undefined) as any }))}
+                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none"
+                    >
+                      <option value="">不设置</option>
+                      <option value="low">低</option>
+                      <option value="mid">中</option>
+                      <option value="high">高</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-foreground/30 text-[10px] font-mono">出生日期（可选）</div>
+                    <input
+                      value={editingProfile.birthDate ?? ""}
+                      onChange={(e) => setEditingProfile((p) => ({ ...p, birthDate: e.target.value || undefined }))}
+                      placeholder="YYYY-MM-DD"
+                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none placeholder:text-foreground/15"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-foreground/30 text-[10px] font-mono">出生时辰（可选）</div>
+                    <input
+                      value={editingProfile.birthTime ?? ""}
+                      onChange={(e) => setEditingProfile((p) => ({ ...p, birthTime: e.target.value || undefined }))}
+                      placeholder="例如 23:30 / 子时"
+                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none placeholder:text-foreground/15"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => {
+                      setProfile(editingProfile);
+                      setProfileVersion((v) => v + 1);
+                      setPicked(false);
+                      setPickedIndex(null);
+                      try {
+                        window.localStorage.removeItem(`co_daily_picked_${dateStr}`);
+                        window.localStorage.removeItem(`co_daily_pick_${dateStr}`);
+                      } catch {}
+                      setShowProfile(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/30 text-neon-cyan text-xs font-mono cursor-pointer"
+                  >
+                    保存并重新抽牌
+                  </button>
+                  <button
+                    onClick={() => {
+                      setProfile({});
+                      setProfileVersion((v) => v + 1);
+                      setPicked(false);
+                      setPickedIndex(null);
+                      try {
+                        window.localStorage.removeItem(`co_daily_picked_${dateStr}`);
+                        window.localStorage.removeItem(`co_daily_pick_${dateStr}`);
+                      } catch {}
+                      setShowProfile(false);
+                    }}
+                    className="px-4 py-3 rounded-xl glass text-foreground/30 text-xs font-mono cursor-pointer"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <div className="text-center text-foreground/10 text-[9px] font-mono">
+                  入口是“右键点击完整解读按钮”。这是刻意隐藏的。
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Share overlay */}
       <AnimatePresence>

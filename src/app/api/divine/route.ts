@@ -1,6 +1,46 @@
 import { NextRequest } from "next/server";
+import { createHash } from "node:crypto";
+import { getRedis } from "@/lib/redis";
 
-const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY;
+type LLMProvider = "deepseek" | "custom";
+
+function resolveLLM(): {
+  provider: LLMProvider;
+  baseURL: string;
+  apiKey: string;
+  model: string;
+} {
+  const provider = ((process.env.LLM_PROVIDER || "deepseek").trim().toLowerCase() as LLMProvider);
+  const baseURL =
+    (process.env.LLM_BASE_URL || (provider === "deepseek" ? "https://api.deepseek.com" : ""))
+      .trim()
+      .replace(/\/$/, "");
+  const apiKey = (process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY || "").trim();
+  const model = (process.env.LLM_MODEL || "deepseek-chat").trim();
+  return { provider, baseURL, apiKey, model };
+}
+
+function sha256(s: string): string {
+  return createHash("sha256").update(s).digest("hex");
+}
+
+function modeTTLSeconds(mode: string): number {
+  // Dream is privacy-sensitive: default no cache (0)
+  if (mode === "dream") return 0;
+  if (mode === "daily") return 24 * 3600;
+  // spread/topic/compat: 7 days
+  return 7 * 24 * 3600;
+}
+
+function streamFromText(text: string): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(text));
+      controller.close();
+    },
+  });
+}
 
 // ─── System Prompts ───────────────────────────────────────────────
 
@@ -72,8 +112,9 @@ const SYSTEM_COMPAT = `你是「赛博神算子」，精通双人合盘解读的
 // ─── Route Handler ────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  if (!DEEPSEEK_KEY) {
-    return new Response("API key not configured", { status: 500 });
+  const llm = resolveLLM();
+  if (!llm.apiKey) {
+    return new Response("API key not configured (set LLM_API_KEY or OPENAI_API_KEY)", { status: 500 });
   }
 
   try {
@@ -149,14 +190,34 @@ export async function POST(req: NextRequest) {
         return new Response("Unknown mode", { status: 400 });
     }
 
-    const apiRes = await fetch("https://api.deepseek.com/chat/completions", {
+    // Cache key: based on mode + prompts + message + model
+    const ttl = modeTTLSeconds(mode);
+    const cacheKey = ttl > 0
+      ? `co:divine:${mode}:${sha256(JSON.stringify({ model: llm.model, systemPrompt, userMessage, maxTokens, temperature: 0.7 }))}`
+      : "";
+
+    if (cacheKey) {
+      try {
+        const redis = await getRedis();
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return new Response(streamFromText(cached), {
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
+        }
+      } catch {
+        // cache is best-effort
+      }
+    }
+
+    const apiRes = await fetch(`${llm.baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${DEEPSEEK_KEY}`,
+        Authorization: `Bearer ${llm.apiKey}`,
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: llm.model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
@@ -180,6 +241,7 @@ export async function POST(req: NextRequest) {
         if (!reader) { controller.close(); return; }
 
         let buffer = "";
+        let fullText = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -195,8 +257,20 @@ export async function POST(req: NextRequest) {
             try {
               const json = JSON.parse(data);
               const content = json.choices?.[0]?.delta?.content;
-              if (content) controller.enqueue(encoder.encode(content));
+              if (content) {
+                fullText += content;
+                controller.enqueue(encoder.encode(content));
+              }
             } catch { /* skip */ }
+          }
+        }
+
+        if (cacheKey && fullText) {
+          try {
+            const redis = await getRedis();
+            await redis.set(cacheKey, fullText, { EX: ttl });
+          } catch {
+            // ignore cache set failures
           }
         }
         controller.close();

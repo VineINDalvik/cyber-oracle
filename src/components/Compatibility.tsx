@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { drawSpread, SPREAD_TYPES, MAJOR_ARCANA, type SpreadResult } from "@/lib/tarot";
 import { recordCardSeen, recordReading } from "@/lib/collection";
@@ -33,8 +33,22 @@ export default function Compatibility() {
   const [reading, setReading] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   const spread = useMemo(() => SPREAD_TYPES[0], []); // single card for compatibility
+
+  // Deep link: open in compat mode with ?mode=compat&code=XXXX
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const code = (url.searchParams.get("code") || "").toUpperCase();
+      if (code) {
+        setShareCode(code);
+        setCodeInput(code);
+        setPhase("code-input");
+      }
+    } catch {}
+  }, []);
 
   // ─── Actions ────────────────────────────────────────────────────
 
@@ -47,17 +61,34 @@ export default function Compatibility() {
     const result = drawSpread(spread, Date.now());
     setAResult(result);
     result.cards.forEach((c) => recordCardSeen(c.card.id));
-
-    // Generate a share code from the result
-    const card = result.cards[0];
-    const code = `${topic?.id?.charAt(0).toUpperCase()}${card.card.id.toString(36).toUpperCase()}${card.isReversed ? "R" : "U"}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-    setShareCode(code);
   };
 
   const revealA = (i: number) => {
     if (aRevealed.has(i)) return;
     setARevealed(new Set(aRevealed).add(i));
-    setTimeout(() => setPhase("a-done"), 600);
+    setTimeout(async () => {
+      setPhase("a-done");
+      if (!topic || !aResult) return;
+      try {
+        const card = aResult.cards[0];
+        const res = await fetch("/api/compat/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topicId: topic.id,
+            topicName: topic.name,
+            aCardId: card.card.id,
+            aIsReversed: card.isReversed,
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          setShareCode(String(json.code || "").toUpperCase());
+        }
+      } catch {
+        // ignore
+      }
+    }, 600);
   };
 
   const drawForB = () => {
@@ -69,22 +100,42 @@ export default function Compatibility() {
   const revealB = (i: number) => {
     if (bRevealed.has(i)) return;
     setBRevealed(new Set(bRevealed).add(i));
-    setTimeout(() => setPhase("b-done"), 600);
+    setTimeout(async () => {
+      setPhase("b-done");
+      if (!shareCode || !bResult) return;
+      setJoining(true);
+      try {
+        const card = bResult.cards[0];
+        await fetch(`/api/compat/session/${encodeURIComponent(shareCode)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bCardId: card.card.id, bIsReversed: card.isReversed }),
+        });
+      } catch {
+        // ignore
+      } finally {
+        setJoining(false);
+      }
+    }, 600);
   };
 
   const handleCodeSubmit = () => {
     if (codeInput.length < 3) return;
-    // Decode the code to simulate partner's card
-    const reversedFlag = codeInput.includes("R");
-    const cardChar = codeInput.charAt(1);
-    const cardId = parseInt(cardChar, 36) % 22;
-    const card = MAJOR_ARCANA[cardId];
-
-    setAResult({
-      cards: [{ card, isReversed: reversedFlag, position: spread.positions[0] }],
-    });
-    setARevealed(new Set([0]));
-    setPhase("b-draw");
+    const code = codeInput.toUpperCase();
+    setShareCode(code);
+    fetch(`/api/compat/session/${encodeURIComponent(code)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("not found"))))
+      .then((s) => {
+        const t = COMPAT_TOPICS.find((x) => x.id === s.topicId) || COMPAT_TOPICS[0];
+        setTopic({ ...t, name: s.topicName || t.name });
+        const card = MAJOR_ARCANA[(s.a?.cardId ?? 0) % 22];
+        setAResult({ cards: [{ card, isReversed: !!s.a?.isReversed, position: spread.positions[0] }] });
+        setARevealed(new Set([0]));
+        setPhase("b-draw");
+      })
+      .catch(() => {
+        // keep UI as-is
+      });
   };
 
   const requestReading = () => {
@@ -141,6 +192,7 @@ export default function Compatibility() {
     setCodeInput("");
     setReading("");
     setIsStreaming(false);
+    setJoining(false);
   };
 
   // ─── Render ─────────────────────────────────────────────────────
@@ -148,6 +200,47 @@ export default function Compatibility() {
   return (
     <div className="flex flex-col items-center min-h-[calc(100dvh-64px)] px-4 pt-5 pb-4">
       <AnimatePresence mode="wait">
+        {/* Code input */}
+        {phase === "code-input" && (
+          <motion.div
+            key="code-input"
+            className="flex flex-col items-center w-full max-w-sm"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="text-foreground/20 text-[10px] font-mono tracking-widest mb-1">
+              COMPATIBILITY
+            </div>
+            <h2 className="text-lg font-bold neon-text-purple tracking-wider mb-2">输入口令</h2>
+            <p className="text-foreground/30 text-xs mb-6">对方发给你的链接/口令，有效期 24 小时</p>
+
+            <div className="w-full">
+              <div className="flex gap-2">
+                <input
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                  placeholder="例如 8C2KQ1AB"
+                  className="flex-1 px-3 py-2 rounded-lg glass text-sm text-foreground/70 placeholder:text-foreground/15 outline-none font-mono tracking-widest text-center"
+                  maxLength={16}
+                />
+                <motion.button
+                  onClick={handleCodeSubmit}
+                  disabled={codeInput.length < 3}
+                  className="px-4 py-2 rounded-lg bg-neon-purple/10 border border-neon-purple/20 text-neon-purple text-xs font-mono cursor-pointer disabled:opacity-30"
+                  whileTap={{ scale: 0.95 }}
+                >
+                  进入
+                </motion.button>
+              </div>
+            </div>
+
+            <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer mt-6">
+              ⟵ 返回
+            </button>
+          </motion.div>
+        )}
+
         {/* Topic selection */}
         {phase === "topic" && (
           <motion.div
@@ -185,23 +278,13 @@ export default function Compatibility() {
                 <span className="text-foreground/15 text-[10px] font-mono">有口令？</span>
                 <div className="flex-1 h-px bg-foreground/5" />
               </div>
-              <div className="flex gap-2">
-                <input
-                  value={codeInput}
-                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                  placeholder="输入对方的口令"
-                  className="flex-1 px-3 py-2 rounded-lg glass text-sm text-foreground/70 placeholder:text-foreground/15 outline-none font-mono tracking-widest text-center"
-                  maxLength={10}
-                />
-                <motion.button
-                  onClick={handleCodeSubmit}
-                  disabled={codeInput.length < 3}
-                  className="px-4 py-2 rounded-lg bg-neon-purple/10 border border-neon-purple/20 text-neon-purple text-xs font-mono cursor-pointer disabled:opacity-30"
-                  whileTap={{ scale: 0.95 }}
-                >
-                  进入
-                </motion.button>
-              </div>
+              <motion.button
+                onClick={() => setPhase("code-input")}
+                className="w-full py-3 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer"
+                whileTap={{ scale: 0.98 }}
+              >
+                输入口令 / 打开链接
+              </motion.button>
             </div>
           </motion.div>
         )}
@@ -252,7 +335,7 @@ export default function Compatibility() {
           </motion.div>
         )}
 
-        {/* Player A done — show code */}
+        {/* Player A done — share link */}
         {phase === "a-done" && aResult && topic && (
           <motion.div
             key="a-done"
@@ -265,23 +348,33 @@ export default function Compatibility() {
             </div>
             <p className="text-neon-cyan text-xs font-mono mb-1">你抽到了：赛博·{aResult.cards[0].card.name}</p>
 
-            {/* Share code */}
             <div className="w-full p-4 rounded-xl glass mt-4 mb-4">
-              <p className="text-foreground/40 text-xs mb-2 text-center">把口令发给对方，让 TA 也来抽一张</p>
-              <div className="flex items-center justify-center gap-2">
-                <div className="text-2xl font-mono font-bold tracking-[0.3em] text-neon-gold">
-                  {shareCode}
-                </div>
+              <p className="text-foreground/40 text-xs mb-2 text-center">把链接发给对方，让 TA 来抽自己的牌</p>
+              <div className="text-foreground/70 text-[10px] font-mono break-all text-center">
+                {shareCode ? `https://cyber.vinex.top/?mode=compat&code=${shareCode}` : "生成链接中..."}
+              </div>
+              <div className="flex gap-2 mt-3">
                 <motion.button
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareCode);
+                  onClick={async () => {
+                    if (!shareCode) return;
+                    const link = `https://cyber.vinex.top/?mode=compat&code=${shareCode}`;
+                    await navigator.clipboard.writeText(link);
                   }}
-                  className="px-2 py-1 rounded text-foreground/30 text-[10px] font-mono glass cursor-pointer"
-                  whileTap={{ scale: 0.9 }}
+                  className="flex-1 py-3 rounded-xl bg-neon-cyan/10 border border-neon-cyan/20 text-neon-cyan text-xs font-mono cursor-pointer disabled:opacity-40"
+                  whileTap={{ scale: 0.98 }}
+                  disabled={!shareCode}
                 >
-                  复制
+                  复制链接
+                </motion.button>
+                <motion.button
+                  onClick={() => setPhase("b-draw")}
+                  className="flex-1 py-3 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer"
+                  whileTap={{ scale: 0.98 }}
+                >
+                  同机继续
                 </motion.button>
               </div>
+              <div className="text-foreground/15 text-[9px] font-mono text-center mt-2">有效期 24 小时</div>
             </div>
 
             {/* Or draw for B directly */}
