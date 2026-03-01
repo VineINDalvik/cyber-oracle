@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  SPREAD_TYPES, drawSpread, castTopicFortune, generateBriefReading, getTodayDateString,
+  SPREAD_TYPES, castTopicFortune, generateBriefReading, getTodayDateString, drawOneCard,
   type SpreadType, type SpreadResult, type Hexagram, type GanZhi, type TopicFortune,
 } from "@/lib/tarot";
 import { recordCardSeen, recordReading } from "@/lib/collection";
@@ -22,11 +22,16 @@ const TOPICS = [
 
 export default function QuickDraw() {
   const [view, setView] = useState<"menu" | "spread" | "topic" | "topicQuestion">("menu");
-  const [phase, setPhase] = useState<"select" | "shuffling" | "revealing" | "revealed">("select");
+  const [phase, setPhase] = useState<"select" | "shuffling" | "table" | "revealed">("select");
   const [selectedSpread, setSelectedSpread] = useState<SpreadType | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<typeof TOPICS[0] | null>(null);
   const [spreadResult, setSpreadResult] = useState<SpreadResult | null>(null);
-  const [revealedIndices, setRevealedIndices] = useState<Set<number>>(new Set());
+  const [pickIndex, setPickIndex] = useState(0);
+  const [tableCards, setTableCards] = useState<Array<{ id: string; rot: number; y: number; x: number }>>([]);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const shuffleCountRef = useRef(0);
+  const sessionSeedRef = useRef<number>(Date.now());
   const [topicQuestion, setTopicQuestion] = useState("");
 
   // Topic fortune extras
@@ -42,35 +47,136 @@ export default function QuickDraw() {
   const [showShare, setShowShare] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
 
+  const currentPos = useMemo(() => {
+    if (!selectedSpread) return null;
+    return selectedSpread.positions[Math.min(pickIndex, selectedSpread.positions.length - 1)];
+  }, [selectedSpread, pickIndex]);
+
+  const makeTableCards = (salt: number) => {
+    const base = sessionSeedRef.current + salt * 97 + shuffleCountRef.current * 131;
+    const mk = (i: number) => {
+      const n = (base + i * 997) % 1000;
+      const rot = ((n % 13) - 6) * 2.2;
+      const x = ((n % 7) - 3) * 4;
+      const y = ((Math.floor(n / 7) % 5) - 2) * 3;
+      return { id: `t${salt}_${i}_${base}`, rot, x, y };
+    };
+    return Array.from({ length: 7 }, (_, i) => mk(i));
+  };
+
+  const startTable = () => {
+    shuffleCountRef.current = 0;
+    setRemovedIds(new Set());
+    setHoverId(null);
+    setPickIndex(0);
+    setSpreadResult(null);
+    setTableCards(makeTableCards(1));
+    setPhase("shuffling");
+    setTimeout(() => setPhase("table"), 900);
+  };
+
+  const reshuffleTable = () => {
+    if (pickIndex > 0) return;
+    shuffleCountRef.current += 1;
+    setRemovedIds(new Set());
+    setHoverId(null);
+    setTableCards(makeTableCards(1 + shuffleCountRef.current));
+  };
+
+  const refillTableIfNeeded = () => {
+    const remaining = tableCards.filter((c) => !removedIds.has(c.id)).length;
+    if (remaining >= 2) return;
+    shuffleCountRef.current += 1;
+    setRemovedIds(new Set());
+    setHoverId(null);
+    setTableCards(makeTableCards(1 + shuffleCountRef.current));
+  };
+
+  const pickFromTable = (tableId: string) => {
+    if (!selectedSpread) return;
+    if (phase !== "table") return;
+    if (removedIds.has(tableId)) return;
+    if (pickIndex >= selectedSpread.cardCount) return;
+
+    const usedIds = spreadResult?.cards.map((c) => c.card.id) ?? [];
+    const pos = selectedSpread.positions[pickIndex];
+    const seedStr = [
+      `qd:${sessionSeedRef.current}`,
+      `view:${view}`,
+      selectedTopic ? `topic:${selectedTopic.id}` : "",
+      selectedTopic ? `q:${topicQuestion.trim().slice(0, 80)}` : "",
+      `sh:${shuffleCountRef.current}`,
+      `pick:${pickIndex}`,
+      `table:${tableId}`,
+    ].filter(Boolean).join("|");
+
+    const drawn = drawOneCard(seedStr, usedIds);
+    recordCardSeen(drawn.card.id);
+
+    const nextCards = [...(spreadResult?.cards ?? [])];
+    nextCards.push({ card: drawn.card, isReversed: drawn.isReversed, position: pos });
+    const nextResult: SpreadResult = { cards: nextCards };
+    setSpreadResult(nextResult);
+
+    if (selectedTopic && topicFortune) {
+      const merged: TopicFortune = { ...topicFortune, spread: nextResult };
+      setTopicFortune(merged);
+      setBriefReading(generateBriefReading(merged, selectedTopic.name));
+    }
+
+    setRemovedIds((prev) => {
+      const n = new Set(prev);
+      n.add(tableId);
+      return n;
+    });
+    setPickIndex((i) => i + 1);
+
+    setTimeout(() => {
+      // When finished, move to revealed stage.
+      const nextPick = pickIndex + 1;
+      if (nextPick >= selectedSpread.cardCount) setPhase("revealed");
+      else refillTableIfNeeded();
+    }, 250);
+  };
+
   // ─── Spread flow (tarot only) ───────────────────────────────────
 
   const handleSpreadSelect = (spread: SpreadType) => {
+    sessionSeedRef.current = Date.now();
+    setSelectedTopic(null);
     setSelectedSpread(spread);
-    setPhase("shuffling");
-    const result = drawSpread(spread);
-    setSpreadResult(result);
-    result.cards.forEach((c) => recordCardSeen(c.card.id));
-    setTimeout(() => setPhase("revealing"), 1500);
+    setView("spread");
+    setHexagram(null);
+    setWuxingAnalysis("");
+    setTopicGanZhi(null);
+    setTopicFortune(null);
+    setBriefReading("");
+    setTopicQuestion("");
+    startTable();
   };
 
   // ─── Topic flow (tarot + 周易 + 五行 三体合一) ──────────────────
 
   const startTopicFortune = (topic: typeof TOPICS[0]) => {
+    sessionSeedRef.current = Date.now();
     setSelectedTopic(topic);
     setView("topic");
     const timelineSpread = SPREAD_TYPES[1];
     setSelectedSpread(timelineSpread);
     setPhase("shuffling");
 
-    const fortune = castTopicFortune(topic.id, timelineSpread);
+    const fortune = castTopicFortune(topic.id, timelineSpread, sessionSeedRef.current);
     setTopicFortune(fortune);
-    setSpreadResult(fortune.spread);
     setHexagram(fortune.hexagram);
     setWuxingAnalysis(fortune.wuxingAnalysis);
     setTopicGanZhi(fortune.ganZhi);
-    fortune.spread.cards.forEach((c) => recordCardSeen(c.card.id));
-
-    setTimeout(() => setPhase("revealing"), 2000);
+    // tarot cards are picked by user on table
+    setRemovedIds(new Set());
+    setHoverId(null);
+    setPickIndex(0);
+    setSpreadResult(null);
+    setTableCards(makeTableCards(1));
+    setTimeout(() => setPhase("table"), 900);
   };
 
   const handleTopicSelect = (topic: typeof TOPICS[0]) => {
@@ -80,30 +186,16 @@ export default function QuickDraw() {
     setPhase("select");
   };
 
-  const revealCard = (index: number) => {
-    if (phase !== "revealing" || revealedIndices.has(index)) return;
-    setRevealedIndices((prev) => new Set(prev).add(index));
-  };
-
-  useEffect(() => {
-    if (!selectedSpread || phase !== "revealing") return;
-    if (revealedIndices.size === selectedSpread.cardCount) {
-      setTimeout(() => {
-        setPhase("revealed");
-        if (selectedTopic && topicFortune) {
-          setBriefReading(generateBriefReading(topicFortune, selectedTopic.name));
-        }
-      }, 600);
-    }
-  }, [revealedIndices, selectedSpread, phase, selectedTopic, topicFortune]);
-
   const reset = () => {
     setView("menu");
     setPhase("select");
     setSelectedSpread(null);
     setSelectedTopic(null);
     setSpreadResult(null);
-    setRevealedIndices(new Set());
+    setPickIndex(0);
+    setTableCards([]);
+    setRemovedIds(new Set());
+    setHoverId(null);
     setHexagram(null);
     setWuxingAnalysis("");
     setTopicGanZhi(null);
@@ -114,21 +206,20 @@ export default function QuickDraw() {
     setShowReading(false);
   };
 
-  const reshuffle = () => {
-    if (!selectedSpread) return;
-    setRevealedIndices(new Set());
-    setReading("");
-    setShowReading(false);
-    setPhase("shuffling");
-
+  const backFromResult = () => {
     if (selectedTopic) {
-      startTopicFortune(selectedTopic);
+      setView("topicQuestion");
+      setPhase("select");
+      setReading("");
+      setShowReading(false);
+      setSpreadResult(null);
+      setPickIndex(0);
+      setRemovedIds(new Set());
+      setHoverId(null);
+      setTableCards([]);
       return;
     }
-    const result = drawSpread(selectedSpread);
-    setSpreadResult(result);
-    result.cards.forEach((c) => recordCardSeen(c.card.id));
-    setTimeout(() => setPhase("revealing"), 1200);
+    reset();
   };
 
   // ─── AI Reading ─────────────────────────────────────────────────
@@ -356,10 +447,10 @@ export default function QuickDraw() {
           </motion.div>
         )}
 
-        {/* ─── Revealing & Revealed ────────────────────────── */}
-        {(phase === "revealing" || phase === "revealed") && selectedSpread && spreadResult && (
+        {/* ─── Table pick (game-like) + Revealed ───────────────────── */}
+        {(phase === "table" || phase === "revealed") && selectedSpread && (
           <motion.div
-            key="revealing"
+            key="table"
             className="flex flex-col items-center w-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -377,16 +468,18 @@ export default function QuickDraw() {
             )}
 
             <p className="text-foreground/30 text-[10px] font-mono mb-3">
-              {phase === "revealing" ? `点击翻牌 · ${revealedIndices.size}/${selectedSpread.cardCount}` : "占卜完成"}
+              {phase === "table"
+                ? `点选桌面上的一张牌 · 牌位「${currentPos?.name ?? ""}」 · ${pickIndex}/${selectedSpread.cardCount}`
+                : "占卜完成"}
             </p>
 
-            {phase === "revealing" && revealedIndices.size === 0 && (
+            {phase === "table" && pickIndex === 0 && (
               <motion.button
-                onClick={reshuffle}
+                onClick={reshuffleTable}
                 className="mb-2 px-3 py-1.5 rounded-lg glass text-foreground/40 text-[10px] font-mono cursor-pointer"
                 whileTap={{ scale: 0.98 }}
               >
-                🔀 再洗一次
+                🔀 洗牌
               </motion.button>
             )}
 
@@ -396,15 +489,14 @@ export default function QuickDraw() {
               </div>
             )}
 
-            {/* ─── Topic: 三体面板 (hexagram + 五行 + tarot) ── */}
-            {selectedTopic && hexagram && topicGanZhi && phase === "revealed" && (
+            {/* ─── Topic: 三体面板 (hexagram + 五行) ── */}
+            {selectedTopic && hexagram && topicGanZhi && (
               <motion.div
                 className="w-full max-w-sm mb-4 space-y-2"
                 initial={{ y: -10, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                {/* Hexagram display */}
                 <div className="flex gap-2">
                   <div className="flex-1 p-3 rounded-xl glass">
                     <div className="flex items-center gap-2 mb-1">
@@ -426,7 +518,6 @@ export default function QuickDraw() {
                   </div>
                 </div>
 
-                {/* 五行 topic analysis */}
                 {wuxingAnalysis && (
                   <div className="p-2.5 rounded-lg bg-neon-gold/3 border border-neon-gold/10">
                     <div className="flex items-center gap-1 mb-1">
@@ -436,7 +527,6 @@ export default function QuickDraw() {
                   </div>
                 )}
 
-                {/* System label */}
                 <div className="flex items-center justify-center gap-3 py-1">
                   <span className="text-[8px] font-mono px-2 py-0.5 rounded bg-neon-gold/5 text-neon-gold/40 border border-neon-gold/10">周易</span>
                   <span className="text-foreground/10 text-[8px]">×</span>
@@ -447,52 +537,75 @@ export default function QuickDraw() {
               </motion.div>
             )}
 
-            {/* Cards layout */}
-            <div className={`flex items-start justify-center gap-4 my-2 ${selectedSpread.cardCount === 1 ? "" : "flex-wrap"}`}>
-              {spreadResult.cards.map((drawn, index) => {
-                const isRevealed = revealedIndices.has(index);
-                const isMulti = selectedSpread.cardCount > 1;
-                const dims = isMulti ? { w: 96, h: 160 } : { w: 220, h: 367 };
-
-                return (
-                  <motion.div
-                    key={index}
-                    className="flex flex-col items-center"
-                    initial={{ y: 40, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: index * 0.15 }}
-                  >
-                    <div className="text-neon-cyan/50 text-[10px] font-mono mb-2">{drawn.position.name}</div>
-                    <motion.div
-                      className="relative cursor-pointer"
-                      style={{ perspective: 800, width: dims.w, height: dims.h }}
-                      onClick={() => revealCard(index)}
-                      whileHover={phase === "revealing" && !isRevealed ? { scale: 1.02 } : undefined}
-                      whileTap={phase === "revealing" && !isRevealed ? { scale: 0.98 } : undefined}
-                      animate={
-                        phase === "revealing" && !isRevealed
-                          ? { boxShadow: "0 0 0 1px rgba(0,240,255,0.10), 0 0 24px rgba(0,240,255,0.06)" }
-                          : { boxShadow: "none" }
-                      }
-                    >
-                      <motion.div className="w-full h-full" style={{ transformStyle: "preserve-3d" }} animate={{ rotateY: isRevealed ? 180 : 0 }} transition={{ duration: 0.6 }}>
-                        <div className="absolute inset-0 flex items-center justify-center" style={{ backfaceVisibility: "hidden" }}><CardBack size={isMulti ? "sm" : "lg"} /></div>
-                        <div className="absolute inset-0 flex items-center justify-center" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}><CardFace cardId={drawn.card.id} reversed={drawn.isReversed} size={isMulti ? "sm" : "lg"} /></div>
-                      </motion.div>
-                    </motion.div>
-                    {isRevealed && (
-                      <motion.div className="text-center mt-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-                        <div className="text-neon-cyan text-[10px] font-mono">赛博·{drawn.card.name}</div>
-                        {drawn.isReversed && <div className="text-neon-pink text-[8px] font-mono">⟲ 逆位</div>}
-                      </motion.div>
-                    )}
-                  </motion.div>
-                );
-              })}
+            {/* Picked by positions */}
+            <div className="w-full max-w-sm mb-4">
+              <div className="grid grid-cols-3 gap-2">
+                {selectedSpread.positions.map((pos, i) => {
+                  const picked = spreadResult?.cards?.[i];
+                  const isActive = phase === "table" && i === pickIndex;
+                  return (
+                    <div key={i} className={`rounded-xl glass p-2 ${isActive ? "border border-neon-cyan/20" : "border border-transparent"}`}>
+                      <div className={`text-[9px] font-mono mb-1 ${isActive ? "text-neon-cyan/60" : "text-foreground/20"}`}>
+                        {pos.name}
+                      </div>
+                      {picked ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-10">
+                            <CardFace cardId={picked.card.id} reversed={picked.isReversed} size="sm" />
+                          </div>
+                          <div className="text-[9px] leading-tight text-foreground/50">
+                            赛博·{picked.card.name}{picked.isReversed ? "（逆）" : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-foreground/15 text-[9px] font-mono py-4 text-center">
+                          {isActive ? "点选一张" : "未选择"}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
+            {/* Table: 7 card backs */}
+            {phase === "table" && (
+              <div className="w-full max-w-sm grid grid-cols-4 gap-2">
+                {tableCards.map((c) => {
+                  const removed = removedIds.has(c.id);
+                  const active = hoverId === c.id;
+                  return (
+                    <motion.button
+                      key={c.id}
+                      onClick={() => pickFromTable(c.id)}
+                      onMouseEnter={() => setHoverId(c.id)}
+                      onMouseLeave={() => setHoverId(null)}
+                      className="relative"
+                      style={{ opacity: removed ? 0 : 1, pointerEvents: removed ? "none" : "auto" }}
+                      whileTap={{ scale: 0.96 }}
+                      animate={{
+                        rotate: c.rot,
+                        x: c.x,
+                        y: c.y,
+                        boxShadow:
+                          active && !removed
+                            ? "0 0 0 1px rgba(0,240,255,0.25), 0 0 40px rgba(0,240,255,0.12)"
+                            : "0 0 0 1px rgba(255,255,255,0.03)",
+                      }}
+                      transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                    >
+                      <CardBack size="sm" />
+                      {active && (
+                        <div className="absolute -top-1 -right-1 text-[9px] font-mono text-neon-cyan/80">✦</div>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Actions */}
-            {phase === "revealed" && (
+            {phase === "revealed" && spreadResult && (
               <motion.div className="w-full max-w-sm space-y-3 mt-4" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
 
                 {/* ─── Topic: 免费简读（直接展示） ─── */}
@@ -553,7 +666,7 @@ export default function QuickDraw() {
                   </div>
                 )}
 
-                <button onClick={reset} className="w-full text-foreground/15 text-xs font-mono cursor-pointer text-center py-1">⟳ 返回</button>
+                <button onClick={backFromResult} className="w-full text-foreground/15 text-xs font-mono cursor-pointer text-center py-1">⟳ 返回</button>
               </motion.div>
             )}
 

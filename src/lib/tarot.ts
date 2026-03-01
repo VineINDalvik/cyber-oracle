@@ -519,6 +519,20 @@ export function drawSpread(spread: SpreadType, seed?: number): SpreadResult {
   };
 }
 
+export function drawOneCard(
+  seed: number | string,
+  usedCardIds?: number[]
+): { card: TarotCard; isReversed: boolean } {
+  const seedNum = typeof seed === "string" ? hashString(seed) : seed;
+  const used = new Set(usedCardIds ?? []);
+  const deck = MAJOR_ARCANA.filter((c) => !used.has(c.id));
+  const rng = new SeededRandom(seedNum || Date.now());
+  const pool = deck.length ? deck : MAJOR_ARCANA;
+  const card = pool[rng.nextInt(pool.length)];
+  const isReversed = rng.next() < 0.3;
+  return { card, isReversed };
+}
+
 // ─── Dream Decode ─────────────────────────────────────────────────
 
 export function dreamDraw(dreamText: string): DrawnResult {
