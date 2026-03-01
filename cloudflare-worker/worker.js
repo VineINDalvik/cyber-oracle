@@ -35,6 +35,12 @@ export default {
     headers.delete("cf-visitor");
     headers.delete("accept-encoding"); // let CF handle compression
 
+    const isStaticAsset =
+      url.pathname.startsWith("/_next/static/") ||
+      url.pathname.startsWith("/cards/") ||
+      url.pathname.startsWith("/images/") ||
+      /\.(?:js|css|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|map)$/.test(url.pathname);
+
     const upstreamResponse = await fetch(upstreamUrl, {
       method: request.method,
       headers,
@@ -43,6 +49,11 @@ export default {
           ? request.body
           : undefined,
       redirect: "follow",
+      // Force Cloudflare to NOT edge-cache HTML/API responses (prevents "stuck old version").
+      // Keep static assets cacheable via their own headers.
+      cf: isStaticAsset
+        ? { cacheEverything: true }
+        : { cacheEverything: false, cacheTtl: 0 },
     });
 
     const responseHeaders = new Headers(upstreamResponse.headers);
@@ -50,6 +61,13 @@ export default {
     responseHeaders.set("Access-Control-Expose-Headers", "*");
     responseHeaders.delete("content-security-policy");
     responseHeaders.delete("x-frame-options");
+
+    // Critical: prevent caching HTML/API at the edge/browser.
+    if (!isStaticAsset) {
+      responseHeaders.set("Cache-Control", "no-store");
+      responseHeaders.set("CDN-Cache-Control", "no-store");
+      responseHeaders.set("Pragma", "no-cache");
+    }
 
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,
