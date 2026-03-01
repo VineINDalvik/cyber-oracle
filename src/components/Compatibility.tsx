@@ -225,7 +225,8 @@ export default function Compatibility() {
               COMPATIBILITY
             </div>
             <h2 className="text-lg font-bold neon-text-purple tracking-wider mb-2">输入口令</h2>
-            <p className="text-foreground/30 text-xs mb-6">对方发给你的链接/口令，有效期 24 小时</p>
+            <p className="text-foreground/30 text-xs mb-2">对方发给你的链接/口令，有效期 24 小时</p>
+            <p className="text-foreground/20 text-[10px] font-mono mb-6">想先看界面？输入 <span className="text-neon-gold/80">DEMO</span></p>
 
             <div className="w-full">
               <div className="flex gap-2">
