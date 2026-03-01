@@ -61,6 +61,8 @@ export default {
     responseHeaders.set("Access-Control-Expose-Headers", "*");
     responseHeaders.delete("content-security-policy");
     responseHeaders.delete("x-frame-options");
+    responseHeaders.set("X-Cyber-Proxy", "cyber-oracle-proxy");
+    responseHeaders.set("X-Cyber-Proxy-Static", isStaticAsset ? "1" : "0");
 
     // Critical: prevent caching HTML/API at the edge/browser.
     if (!isStaticAsset) {
