@@ -1,9 +1,13 @@
 export type SleepQuality = "good" | "ok" | "bad";
 export type StressLevel = "low" | "mid" | "high";
+export type MoodLevel = "low" | "mid" | "high";
+export type WeatherType = "sunny" | "cloudy" | "rain" | "snow" | "wind" | "fog" | "hot" | "cold";
 
 export interface UserProfile {
   sleep?: SleepQuality;
   stress?: StressLevel;
+  mood?: MoodLevel;
+  weather?: WeatherType;
   birthDate?: string; // YYYY-MM-DD
   birthTime?: string; // HH:mm or 时辰文本
 }
@@ -64,6 +68,8 @@ export function profileSeedString(deviceId: string, dateStr: string, profile: Us
     `date=${dateStr}`,
     profile.sleep ? `sleep=${profile.sleep}` : "",
     profile.stress ? `stress=${profile.stress}` : "",
+    profile.mood ? `mood=${profile.mood}` : "",
+    profile.weather ? `weather=${profile.weather}` : "",
     profile.birthDate ? `birth=${profile.birthDate}` : "",
     profile.birthTime ? `time=${profile.birthTime}` : "",
   ].filter(Boolean);

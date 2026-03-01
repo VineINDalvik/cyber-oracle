@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { drawSpread, SPREAD_TYPES, MAJOR_ARCANA, type SpreadResult } from "@/lib/tarot";
 import { recordCardSeen, recordReading } from "@/lib/collection";
 import CardFace, { CardBack } from "./CardFace";
+import ShareableCard from "./ShareableCard";
 import PaymentGate from "./PaymentGate";
 
 const COMPAT_TOPICS = [
@@ -34,6 +35,7 @@ export default function Compatibility() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const spread = useMemo(() => SPREAD_TYPES[0], []); // single card for compatibility
 
@@ -509,6 +511,14 @@ export default function Compatibility() {
               📖 查看合盘解读
             </motion.button>
 
+            <motion.button
+              onClick={() => setShowShare(true)}
+              className="w-full py-3 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer mb-3"
+              whileTap={{ scale: 0.98 }}
+            >
+              💾 生成合盘分享图
+            </motion.button>
+
             <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer">
               ⟳ 重来
             </button>
@@ -564,6 +574,31 @@ export default function Compatibility() {
         onClose={() => setShowPayment(false)}
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}
       />
+
+      <AnimatePresence>
+        {showShare && aResult && bResult && topic && (
+          <ShareableCard
+            result={{
+              card: aResult.cards[0].card,
+              isReversed: aResult.cards[0].isReversed,
+              fortune: `合盘主题：${topic.name}\n甲方：赛博·${aResult.cards[0].card.name}${aResult.cards[0].isReversed ? "（逆位）" : "（正位）"}\n乙方：赛博·${bResult.cards[0].card.name}${bResult.cards[0].isReversed ? "（逆位）" : "（正位）"}`,
+              label: "双人合盘",
+            }}
+            secondaryCard={{
+              cardId: bResult.cards[0].card.id,
+              reversed: bResult.cards[0].isReversed,
+              name: bResult.cards[0].card.name,
+            }}
+            mode="compat"
+            title="双人合盘"
+            subtitle={topic.name}
+            dateStr={new Date().toISOString().slice(0, 10)}
+            visible={showShare}
+            onClose={() => setShowShare(false)}
+            qrHintText="扫码和我一起合盘"
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

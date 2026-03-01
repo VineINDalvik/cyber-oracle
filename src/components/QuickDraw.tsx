@@ -17,15 +17,17 @@ const TOPICS = [
   { id: "wealth", icon: "💰", name: "财运", description: "塔罗 × 周易 × 五行 · 财运全维解读" },
   { id: "health", icon: "🏥", name: "健康", description: "塔罗 × 周易 × 五行 · 身心能量分析" },
   { id: "social", icon: "🤝", name: "人际关系", description: "塔罗 × 周易 × 五行 · 社交场域解读" },
+  { id: "dilemma", icon: "🧩", name: "困境解码", description: "输入你的问题 · 三体合一给你一个可执行的答案", requiresQuestion: true },
 ];
 
 export default function QuickDraw() {
-  const [view, setView] = useState<"menu" | "spread" | "topic">("menu");
+  const [view, setView] = useState<"menu" | "spread" | "topic" | "topicQuestion">("menu");
   const [phase, setPhase] = useState<"select" | "shuffling" | "revealing" | "revealed">("select");
   const [selectedSpread, setSelectedSpread] = useState<SpreadType | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<typeof TOPICS[0] | null>(null);
   const [spreadResult, setSpreadResult] = useState<SpreadResult | null>(null);
   const [revealedIndices, setRevealedIndices] = useState<Set<number>>(new Set());
+  const [topicQuestion, setTopicQuestion] = useState("");
 
   // Topic fortune extras
   const [hexagram, setHexagram] = useState<Hexagram | null>(null);
@@ -53,7 +55,7 @@ export default function QuickDraw() {
 
   // ─── Topic flow (tarot + 周易 + 五行 三体合一) ──────────────────
 
-  const handleTopicSelect = (topic: typeof TOPICS[0]) => {
+  const startTopicFortune = (topic: typeof TOPICS[0]) => {
     setSelectedTopic(topic);
     setView("topic");
     const timelineSpread = SPREAD_TYPES[1];
@@ -69,6 +71,13 @@ export default function QuickDraw() {
     fortune.spread.cards.forEach((c) => recordCardSeen(c.card.id));
 
     setTimeout(() => setPhase("revealing"), 2000);
+  };
+
+  const handleTopicSelect = (topic: typeof TOPICS[0]) => {
+    setSelectedTopic(topic);
+    setTopicQuestion("");
+    setView("topicQuestion");
+    setPhase("select");
   };
 
   const revealCard = (index: number) => {
@@ -100,8 +109,26 @@ export default function QuickDraw() {
     setTopicGanZhi(null);
     setTopicFortune(null);
     setBriefReading("");
+    setTopicQuestion("");
     setReading("");
     setShowReading(false);
+  };
+
+  const reshuffle = () => {
+    if (!selectedSpread) return;
+    setRevealedIndices(new Set());
+    setReading("");
+    setShowReading(false);
+    setPhase("shuffling");
+
+    if (selectedTopic) {
+      startTopicFortune(selectedTopic);
+      return;
+    }
+    const result = drawSpread(selectedSpread);
+    setSpreadResult(result);
+    result.cards.forEach((c) => recordCardSeen(c.card.id));
+    setTimeout(() => setPhase("revealing"), 1200);
   };
 
   // ─── AI Reading ─────────────────────────────────────────────────
@@ -133,6 +160,7 @@ export default function QuickDraw() {
       if (selectedTopic) {
         body.topicId = selectedTopic.id;
         body.topicName = selectedTopic.name;
+        if (topicQuestion.trim()) body.question = topicQuestion.trim();
       }
       if (hexagram) {
         body.hexagramName = hexagram.name;
@@ -177,7 +205,17 @@ export default function QuickDraw() {
 
   const primaryResult = spreadResult?.cards[0];
   const shareResult = primaryResult
-    ? { card: primaryResult.card, isReversed: primaryResult.isReversed, fortune: "", label: selectedTopic?.name ?? selectedSpread?.name ?? "" }
+    ? {
+        card: primaryResult.card,
+        isReversed: primaryResult.isReversed,
+        fortune: selectedTopic
+          ? [
+              topicQuestion.trim() ? `你的问题：${topicQuestion.trim()}` : "",
+              briefReading || `主题：${selectedTopic.name}`,
+            ].filter(Boolean).join("\n")
+          : `牌阵「${selectedSpread?.name ?? ""}」已揭示关键牌：赛博·${primaryResult.card.name}`,
+        label: selectedTopic ? "主题占卜" : "牌阵占卜",
+      }
     : null;
 
   return (
@@ -240,6 +278,51 @@ export default function QuickDraw() {
           </motion.div>
         )}
 
+        {/* ─── Topic question ─────────────────────────────── */}
+        {view === "topicQuestion" && selectedTopic && phase === "select" && (
+          <motion.div
+            key="topicQuestion"
+            className="flex flex-col items-center w-full max-w-sm"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="text-foreground/20 text-[10px] font-mono tracking-widest mb-1">FORTUNE READING</div>
+            <div className="text-3xl mb-1">{selectedTopic.icon}</div>
+            <h2 className="text-lg font-bold neon-text tracking-wider mb-2">{selectedTopic.name}</h2>
+            <p className="text-foreground/30 text-xs mb-4 text-center">
+              {selectedTopic.requiresQuestion ? "输入一个具体问题，解读会更准" : "可选：输入一个问题，让解读更贴近你的处境"}
+            </p>
+
+            <textarea
+              value={topicQuestion}
+              onChange={(e) => setTopicQuestion(e.target.value)}
+              placeholder={selectedTopic.requiresQuestion ? "例如：我该不该离职？这段关系还有必要继续吗？" : "（可不填）一句话说清你想问什么"}
+              className="w-full min-h-24 px-4 py-3 rounded-xl glass text-foreground/70 text-sm outline-none placeholder:text-foreground/15"
+              maxLength={120}
+            />
+            <div className="w-full text-right text-foreground/15 text-[10px] font-mono mt-1">
+              {topicQuestion.length}/120
+            </div>
+
+            <motion.button
+              onClick={() => {
+                if ((selectedTopic as any).requiresQuestion && topicQuestion.trim().length < 3) return;
+                startTopicFortune(selectedTopic);
+              }}
+              disabled={(selectedTopic as any).requiresQuestion && topicQuestion.trim().length < 3}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-sm font-mono cursor-pointer mt-4 disabled:opacity-40"
+              whileTap={{ scale: 0.98 }}
+            >
+              🔀 开始洗牌
+            </motion.button>
+
+            <button onClick={reset} className="w-full text-foreground/15 text-xs font-mono cursor-pointer text-center py-3">
+              ⟵ 返回
+            </button>
+          </motion.div>
+        )}
+
         {/* ─── Shuffling ───────────────────────────────────── */}
         {phase === "shuffling" && (
           <motion.div
@@ -296,6 +379,22 @@ export default function QuickDraw() {
             <p className="text-foreground/30 text-[10px] font-mono mb-3">
               {phase === "revealing" ? `点击翻牌 · ${revealedIndices.size}/${selectedSpread.cardCount}` : "占卜完成"}
             </p>
+
+            {phase === "revealing" && revealedIndices.size === 0 && (
+              <motion.button
+                onClick={reshuffle}
+                className="mb-2 px-3 py-1.5 rounded-lg glass text-foreground/40 text-[10px] font-mono cursor-pointer"
+                whileTap={{ scale: 0.98 }}
+              >
+                🔀 再洗一次
+              </motion.button>
+            )}
+
+            {selectedTopic && topicQuestion.trim() && (
+              <div className="w-full max-w-sm mb-2 px-3 py-2 rounded-xl bg-neon-purple/5 border border-neon-purple/10 text-foreground/45 text-[10px] leading-relaxed">
+                <span className="text-foreground/20 font-mono">你的问题：</span>{topicQuestion.trim()}
+              </div>
+            )}
 
             {/* ─── Topic: 三体面板 (hexagram + 五行 + tarot) ── */}
             {selectedTopic && hexagram && topicGanZhi && phase === "revealed" && (
@@ -364,12 +463,23 @@ export default function QuickDraw() {
                     transition={{ delay: index * 0.15 }}
                   >
                     <div className="text-neon-cyan/50 text-[10px] font-mono mb-2">{drawn.position.name}</div>
-                    <div className="relative cursor-pointer" style={{ perspective: 800, width: dims.w, height: dims.h }} onClick={() => revealCard(index)}>
+                    <motion.div
+                      className="relative cursor-pointer"
+                      style={{ perspective: 800, width: dims.w, height: dims.h }}
+                      onClick={() => revealCard(index)}
+                      whileHover={phase === "revealing" && !isRevealed ? { scale: 1.02 } : undefined}
+                      whileTap={phase === "revealing" && !isRevealed ? { scale: 0.98 } : undefined}
+                      animate={
+                        phase === "revealing" && !isRevealed
+                          ? { boxShadow: "0 0 0 1px rgba(0,240,255,0.10), 0 0 24px rgba(0,240,255,0.06)" }
+                          : { boxShadow: "none" }
+                      }
+                    >
                       <motion.div className="w-full h-full" style={{ transformStyle: "preserve-3d" }} animate={{ rotateY: isRevealed ? 180 : 0 }} transition={{ duration: 0.6 }}>
                         <div className="absolute inset-0 flex items-center justify-center" style={{ backfaceVisibility: "hidden" }}><CardBack size={isMulti ? "sm" : "lg"} /></div>
                         <div className="absolute inset-0 flex items-center justify-center" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}><CardFace cardId={drawn.card.id} reversed={drawn.isReversed} size={isMulti ? "sm" : "lg"} /></div>
                       </motion.div>
-                    </div>
+                    </motion.div>
                     {isRevealed && (
                       <motion.div className="text-center mt-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
                         <div className="text-neon-cyan text-[10px] font-mono">赛博·{drawn.card.name}</div>
@@ -471,7 +581,17 @@ export default function QuickDraw() {
 
             <AnimatePresence>
               {showShare && shareResult && (
-                <ShareableCard result={shareResult} mode="draw" dateStr={getTodayDateString()} visible={showShare} onClose={() => setShowShare(false)} />
+                <ShareableCard
+                  result={shareResult}
+                  mode={selectedTopic ? "topic" : "spread"}
+                  title={selectedTopic ? `${selectedTopic.name} · 主题占卜` : `${selectedSpread?.name ?? "牌阵"} · 牌阵占卜`}
+                  subtitle={selectedTopic ? "周易 × 五行 × 塔罗" : "塔罗牌阵"}
+                  contextText={shareResult.fortune}
+                  dateStr={getTodayDateString()}
+                  visible={showShare}
+                  onClose={() => setShowShare(false)}
+                  qrHintText={selectedTopic ? "扫码做一次主题占卜" : "扫码抽你的牌阵"}
+                />
               )}
             </AnimatePresence>
           </motion.div>

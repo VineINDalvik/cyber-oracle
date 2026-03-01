@@ -15,11 +15,12 @@ export default function DailySign() {
   const [profileVersion, setProfileVersion] = useState(0);
   const [picked, setPicked] = useState(false);
   const [pickedIndex, setPickedIndex] = useState<number | null>(null);
-  const seed = useMemo(() => {
+  const baseSeed = useMemo(() => {
     const deviceId = getOrCreateDeviceId();
     const p = getProfile();
     return profileSeedString(deviceId, dateStr, p);
   }, [dateStr, profileVersion]);
+  const seed = useMemo(() => `${baseSeed}|pick=${pickedIndex ?? 0}`, [baseSeed, pickedIndex]);
   const result = useMemo(() => getDailySign(dateStr, seed), [dateStr, seed]);
   const { ganZhi: gz } = result;
 
@@ -30,6 +31,68 @@ export default function DailySign() {
   const [showPayment, setShowPayment] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [editingProfile, setEditingProfile] = useState<UserProfile>(() => getProfile());
+  const profile = useMemo(() => getProfile(), [profileVersion]);
+
+  const weatherLabel = useMemo(() => {
+    const w = (profile as any).weather as string | undefined;
+    switch (w) {
+      case "sunny": return "晴";
+      case "cloudy": return "阴";
+      case "rain": return "雨";
+      case "snow": return "雪";
+      case "wind": return "风";
+      case "fog": return "雾";
+      case "hot": return "热";
+      case "cold": return "冷";
+      default: return "";
+    }
+  }, [profile]);
+
+  const moodLabel = useMemo(() => {
+    const m = (profile as any).mood as string | undefined;
+    switch (m) {
+      case "low": return "低落";
+      case "mid": return "一般";
+      case "high": return "很棒";
+      default: return "";
+    }
+  }, [profile]);
+
+  const dailyCalendar = useMemo(() => {
+    const hash = (s: string) => {
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return (h >>> 0);
+    };
+    const rng = hash(seed);
+    const yiPool = ["沟通协商", "整理收纳", "做计划", "轻运动", "读书学习", "断舍离", "写作记录", "早睡修复", "复盘总结", "散步晒太阳", "社交破冰", "补水养生"];
+    const jiPool = ["冲动决策", "硬刚对抗", "熬夜透支", "过度消费", "情绪化发言", "拖延逃避", "过量咖啡", "无意义内耗"];
+    const pick = (arr: string[], n: number, offset: number) => {
+      const out: string[] = [];
+      const used = new Set<number>();
+      for (let i = 0; i < n; i++) {
+        const idx = (rng + offset + i * 97) % arr.length;
+        let j = idx;
+        while (used.has(j)) j = (j + 1) % arr.length;
+        used.add(j);
+        out.push(arr[j]);
+      }
+      return out;
+    };
+    const yi = pick(yiPool, 3, 11);
+    const ji = pick(jiPool, 2, 37);
+    const adviceBase = gz.wuxingElement === "水" ? "适合回收、沉淀、慢一点" :
+      gz.wuxingElement === "火" ? "适合启动、推进、把话说开" :
+      gz.wuxingElement === "金" ? "适合断舍离、做取舍、立规矩" :
+      gz.wuxingElement === "木" ? "适合学习成长、建立链接" : "适合稳住节奏、做基础建设";
+    const moodHint = moodLabel ? `心情${moodLabel}时：先稳住，再出手。` : "";
+    const weatherHint = weatherLabel ? `天气${weatherLabel}：按环境调节节奏。` : "";
+    const advice = [adviceBase, moodHint, weatherHint].filter(Boolean).join(" ");
+    return { yi, ji, advice };
+  }, [seed, gz.wuxingElement, moodLabel, weatherLabel]);
 
   useEffect(() => {
     try {
@@ -126,6 +189,19 @@ export default function DailySign() {
             {gz.wuxingElement}行 · {gz.direction}方 · {gz.color}色
           </span>
         </div>
+
+        <div className="flex items-center justify-center gap-2 mt-3">
+          <motion.button
+            onClick={() => openHiddenProfile()}
+            className="px-3 py-1.5 rounded-lg glass text-foreground/40 text-[10px] font-mono cursor-pointer"
+            whileTap={{ scale: 0.98 }}
+          >
+            ⚙️ 个性化参数
+          </motion.button>
+          <div className="text-foreground/15 text-[9px] font-mono">
+            生辰/心情会影响你抽到的牌
+          </div>
+        </div>
       </motion.div>
 
       {/* Card */}
@@ -160,7 +236,7 @@ export default function DailySign() {
               ))}
             </div>
             <div className="text-foreground/30 text-[10px] font-mono mt-3">
-              选一张，看看今天你的签
+              选一张，看看今天你的签（选哪张真的会影响结果）
             </div>
           </div>
         )}
@@ -173,7 +249,7 @@ export default function DailySign() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
       >
-        {result.fortune}
+        {picked ? result.fortune : " "}
       </motion.p>
 
       {/* Label (free) */}
@@ -183,8 +259,46 @@ export default function DailySign() {
         animate={{ scale: 1, rotate: -12 }}
         transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.5 }}
       >
-        <div className="stamp text-xs">{result.label}</div>
+        <div className="stamp text-xs">{picked ? result.label : " "}</div>
       </motion.div>
+
+      {/* Daily calendar: 宜/忌 + 建议（本地生成，不额外消耗 token） */}
+      {picked && (
+        <motion.div
+          className="w-full max-w-xs mb-4 p-3 rounded-xl glass"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.55 }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-foreground/30 text-[10px] font-mono">今日宜忌</div>
+            <div className="text-foreground/15 text-[10px] font-mono">
+              {weatherLabel ? `天气${weatherLabel}` : ""}
+              {weatherLabel && moodLabel ? " · " : ""}
+              {moodLabel ? `心情${moodLabel}` : ""}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <span className="text-neon-cyan/60 text-[9px] font-mono px-2 py-0.5 rounded bg-neon-cyan/5 border border-neon-cyan/10">宜</span>
+            {dailyCalendar.yi.map((t) => (
+              <span key={t} className="text-foreground/35 text-[9px] font-mono px-2 py-0.5 rounded bg-foreground/5 border border-foreground/10">
+                {t}
+              </span>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span className="text-neon-pink/60 text-[9px] font-mono px-2 py-0.5 rounded bg-neon-pink/5 border border-neon-pink/10">忌</span>
+            {dailyCalendar.ji.map((t) => (
+              <span key={t} className="text-foreground/35 text-[9px] font-mono px-2 py-0.5 rounded bg-foreground/5 border border-foreground/10">
+                {t}
+              </span>
+            ))}
+          </div>
+          <div className="text-foreground/45 text-[10px] leading-relaxed">
+            <span className="text-foreground/25 font-mono">建议：</span>{dailyCalendar.advice}
+          </div>
+        </motion.div>
+      )}
 
       {/* Derivation */}
       <motion.div
@@ -193,7 +307,7 @@ export default function DailySign() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.7 }}
       >
-        {gz.gan}{gz.zhi}日 → {gz.wuxing}（{gz.wuxingElement}行）→ 塔罗{result.card.element}元素 → 赛博·{result.card.name}
+        {gz.gan}{gz.zhi}日 → {gz.wuxing}（{gz.wuxingElement}行）→ 塔罗{result.card.element}元素 → {picked ? `赛博·${result.card.name}` : "等待你选牌"}
       </motion.div>
 
       {/* Teaser for paid reading */}
@@ -279,7 +393,7 @@ export default function DailySign() {
         onUnlocked={() => { setShowPayment(false); doFetchReading(); }}
       />
 
-      {/* Hidden profile/settings (right-click the button) */}
+      {/* Profile/settings */}
       <AnimatePresence>
         {showProfile && (
           <motion.div
@@ -298,7 +412,7 @@ export default function DailySign() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-6 pt-5 pb-4 border-b border-foreground/5">
-                <div className="text-sm font-bold neon-text text-center">隐藏个性化设置</div>
+                <div className="text-sm font-bold neon-text text-center">个性化参数</div>
                 <div className="text-[10px] text-foreground/30 font-mono text-center mt-1">
                   不填也能用；填了会影响“你今天抽到哪张牌”
                 </div>
@@ -336,7 +450,41 @@ export default function DailySign() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <div className="text-foreground/30 text-[10px] font-mono">出生日期（可选）</div>
+                  <div className="text-foreground/30 text-[10px] font-mono">心情</div>
+                  <select
+                    value={editingProfile.mood ?? ""}
+                    onChange={(e) => setEditingProfile((p) => ({ ...p, mood: (e.target.value || undefined) as any }))}
+                    className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none"
+                  >
+                    <option value="">不设置</option>
+                    <option value="low">低落</option>
+                    <option value="mid">一般</option>
+                    <option value="high">很棒</option>
+                  </select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-foreground/30 text-[10px] font-mono">天气</div>
+                    <select
+                      value={editingProfile.weather ?? ""}
+                      onChange={(e) => setEditingProfile((p) => ({ ...p, weather: (e.target.value || undefined) as any }))}
+                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none"
+                    >
+                      <option value="">不设置</option>
+                      <option value="sunny">晴</option>
+                      <option value="cloudy">阴</option>
+                      <option value="rain">雨</option>
+                      <option value="snow">雪</option>
+                      <option value="wind">风</option>
+                      <option value="fog">雾</option>
+                      <option value="hot">热</option>
+                      <option value="cold">冷</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-foreground/30 text-[10px] font-mono">生辰（年月日）</div>
                     <input
                       value={editingProfile.birthDate ?? ""}
                       onChange={(e) => setEditingProfile((p) => ({ ...p, birthDate: e.target.value || undefined }))}
@@ -345,7 +493,7 @@ export default function DailySign() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <div className="text-foreground/30 text-[10px] font-mono">出生时辰（可选）</div>
+                    <div className="text-foreground/30 text-[10px] font-mono">时辰</div>
                     <input
                       value={editingProfile.birthTime ?? ""}
                       onChange={(e) => setEditingProfile((p) => ({ ...p, birthTime: e.target.value || undefined }))}
@@ -391,7 +539,7 @@ export default function DailySign() {
                 </div>
 
                 <div className="text-center text-foreground/10 text-[9px] font-mono">
-                  入口是“右键点击完整解读按钮”。这是刻意隐藏的。
+                  参数只用于本机“个性化抽签”，不会上传隐私信息。
                 </div>
               </div>
             </motion.div>
@@ -402,7 +550,34 @@ export default function DailySign() {
       {/* Share overlay */}
       <AnimatePresence>
         {showShare && (
-          <ShareableCard result={result} mode="daily" dateStr={dateStr} visible={showShare} onClose={() => setShowShare(false)} ganZhi={gz} />
+          <ShareableCard
+            result={{
+              ...result,
+              fortune: [
+                result.fortune,
+                "",
+                `宜：${dailyCalendar.yi.join("、")}`,
+                `忌：${dailyCalendar.ji.join("、")}`,
+                `建议：${dailyCalendar.advice}`,
+              ].join("\n"),
+              label: "每日签",
+            }}
+            mode="daily"
+            title="每日签"
+            subtitle="你的今日赛博日历"
+            contextText={[
+              result.fortune,
+              "",
+              `宜：${dailyCalendar.yi.join("、")}`,
+              `忌：${dailyCalendar.ji.join("、")}`,
+              `建议：${dailyCalendar.advice}`,
+            ].join("\n")}
+            dateStr={dateStr}
+            visible={showShare}
+            onClose={() => setShowShare(false)}
+            ganZhi={gz}
+            qrHintText="扫码抽你的每日签"
+          />
         )}
       </AnimatePresence>
     </div>

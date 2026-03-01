@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
         systemPrompt = SYSTEM_TOPIC;
         userMessage = [
           `═══ 专项主题：${body.topicName} ═══`,
+          body.question ? `用户问题：${body.question}` : "",
           ``,
           `【周易卦象】`,
           body.hexagramName ? `起卦：${body.hexagramName}卦 ${body.hexagramSymbol}` : "",

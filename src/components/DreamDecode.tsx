@@ -232,7 +232,20 @@ export default function DreamDecode() {
 
             <AnimatePresence>
               {showShare && (
-                <ShareableCard result={result} mode="dream" dateStr={getTodayDateString()} visible={showShare} onClose={() => setShowShare(false)} />
+                <ShareableCard
+                  result={{
+                    ...result,
+                    fortune: `梦境摘录：${dream.trim().slice(0, 72)}${dream.trim().length > 72 ? "…" : ""}`,
+                    label: "梦境解码",
+                  }}
+                  mode="dream"
+                  title="梦境解码"
+                  subtitle="周公 × 塔罗"
+                  dateStr={getTodayDateString()}
+                  visible={showShare}
+                  onClose={() => setShowShare(false)}
+                  qrHintText="扫码体验梦境解码"
+                />
               )}
             </AnimatePresence>
           </motion.div>
