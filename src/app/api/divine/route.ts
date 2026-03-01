@@ -15,7 +15,9 @@ function resolveLLM(): {
     (process.env.LLM_BASE_URL || (provider === "deepseek" ? "https://api.deepseek.com" : ""))
       .trim()
       .replace(/\/$/, "");
-  const apiKey = (process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY || "").trim();
+  const apiKeyRaw = (process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY || "").trim();
+  // Some env sources accidentally include literal "\n" or "\r" suffixes (as characters, not whitespace).
+  const apiKey = apiKeyRaw.replace(/\\[nr]/g, "").trim();
   const model = (process.env.LLM_MODEL || "deepseek-chat").trim();
   return { provider, baseURL, apiKey, model };
 }

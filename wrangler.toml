@@ -1,0 +1,9 @@
+name = "cyber-oracle"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Notes
+# - This Worker is deployed via Cloudflare Git integration.
+# - Bind the route in Cloudflare Dashboard:
+#     cyber.vinex.top/*  →  cyber-oracle
+
