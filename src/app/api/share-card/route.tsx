@@ -59,12 +59,20 @@ async function loadFonts() {
 async function getQrDataUrl(): Promise<string> {
   if (qrDataUrl) return qrDataUrl;
   // Data URL PNG so it always renders in next/og ImageResponse.
-  qrDataUrl = await QRCode.toDataURL("https://cyber.vinex.top", {
-    errorCorrectionLevel: "L",
-    margin: 0,
-    scale: 6,
-    color: { dark: "#0a0a0f", light: "#ffffff" },
-  });
+  // Match "毒舌品味官" style: white QR on transparent background.
+  const make = async (light: string) =>
+    QRCode.toDataURL("https://cyber.vinex.top", {
+      errorCorrectionLevel: "M",
+      margin: 0,
+      width: 240,
+      color: { dark: "#ffffff", light },
+    });
+  try {
+    qrDataUrl = await make("#00000000");
+  } catch {
+    // Some builds only accept 4-digit hex (#RGBA)
+    qrDataUrl = await make("#0000");
+  }
   return qrDataUrl;
 }
 
@@ -87,7 +95,7 @@ export async function POST(req: NextRequest) {
     const cardImgSrc = getCardDataUrl(data.cardId);
     const secondaryImgSrc = data.secondaryCardId != null ? getCardDataUrl(data.secondaryCardId) : "";
     const isCompat = !!secondaryImgSrc;
-    const qrSize = isCompat ? 84 : 96;
+    const qrSize = isCompat ? 64 : 72;
 
     return new ImageResponse(
       (
@@ -100,8 +108,8 @@ export async function POST(req: NextRequest) {
             background: "linear-gradient(180deg, #0a0a0f 0%, #111128 50%, #0a0a0f 100%)",
             fontFamily: "NotoSansSC",
             color: "#ffffff",
-            // Slightly larger bottom padding to avoid QR clipping on some renders
-            padding: "48px 48px 56px",
+            // More bottom padding to ensure no clipping, even with QR container + CTA.
+            padding: "48px 48px 72px",
           }}
         >
           {/* Header */}
@@ -188,20 +196,37 @@ export async function POST(req: NextRequest) {
 
           {/* Footer */}
           <div style={{ display: "flex", width: "100%", height: 1, background: "rgba(255,255,255,0.06)", marginBottom: 20 }} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <div style={{ display: "flex", fontSize: 14, color: "rgba(255,255,255,0.2)" }}>{data.dateStr}</div>
               {data.ganZhi && (
                 <div style={{ display: "flex", fontSize: 14, color: "rgba(255,184,0,0.3)" }}>{data.ganZhi} · {data.wuxing}</div>
               )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", padding: 8, background: "rgba(255,255,255,0.92)", borderRadius: 14 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrSrc} width={qrSize} height={qrSize} style={{ display: "flex", objectFit: "contain" }} />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 96,
+                padding: "8px 8px 8px",
+                borderRadius: 18,
+                background: "linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03))",
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 12px 30px rgba(0,0,0,0.22)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrSrc} width={qrSize} height={qrSize} style={{ display: "flex" }} />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              <div style={{ display: "flex", fontSize: 14, color: "rgba(102, 126, 234, 0.9)", whiteSpace: "nowrap" }}>
+                扫码体验 → 
               </div>
-              <div style={{ display: "flex", fontSize: 14, color: "rgba(0,240,255,0.3)" }}>
-                扫码打开 cyber.vinex.top
+              <div style={{ display: "flex", fontSize: 12, color: "rgba(0,240,255,0.25)", whiteSpace: "nowrap" }}>
+                cyber.vinex.top
               </div>
             </div>
           </div>
@@ -209,7 +234,7 @@ export async function POST(req: NextRequest) {
       ),
       {
         width: 600,
-        height: isCompat ? 760 : 1000,
+        height: isCompat ? 820 : 1000,
         fonts: [
           { name: "NotoSansSC", data: fonts.regular, weight: 400 as const, style: "normal" as const },
           { name: "NotoSansSC", data: fonts.bold, weight: 700 as const, style: "normal" as const },

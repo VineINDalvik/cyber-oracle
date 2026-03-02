@@ -242,25 +242,29 @@ export default function DailySign() {
         )}
       </motion.div>
 
-      {/* Fortune text (free) */}
-      <motion.p
-        className="text-center max-w-xs text-foreground/70 text-sm leading-relaxed mb-3"
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        {picked ? result.fortune : " "}
-      </motion.p>
+      {/* Fortune text (free) — only after pick */}
+      {picked && (
+        <motion.p
+          className="text-center max-w-xs text-foreground/70 text-sm leading-relaxed mb-3"
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          {result.fortune}
+        </motion.p>
+      )}
 
-      {/* Label (free) */}
-      <motion.div
-        className="mb-4"
-        initial={{ scale: 0, rotate: -20 }}
-        animate={{ scale: 1, rotate: -12 }}
-        transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.5 }}
-      >
-        <div className="stamp text-xs">{picked ? result.label : " "}</div>
-      </motion.div>
+      {/* Label (free) — only after pick */}
+      {picked && (
+        <motion.div
+          className="mb-4"
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: -12 }}
+          transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.5 }}
+        >
+          <div className="stamp text-xs">{result.label}</div>
+        </motion.div>
+      )}
 
       {/* Daily calendar: 宜/忌 + 建议（本地生成，不额外消耗 token） */}
       {picked && (
