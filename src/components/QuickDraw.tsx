@@ -20,8 +20,8 @@ const TOPICS = [
   {
     id: "open",
     icon: "🧩",
-    name: "开放场景",
-    description: "你今天有什么困惑？写一句话 · 三体合一给你一个可执行的答案",
+    name: "自由提问",
+    description: "写下你今天最想问的一句话 · 三体合一给你一个可执行的答案",
     requiresQuestion: true,
   },
 ];
@@ -376,7 +376,7 @@ export default function QuickDraw() {
                     <div className="text-foreground/70 text-xs font-bold mb-0.5">{topic.name}</div>
                     <div className="text-foreground/20 text-[9px] leading-tight">{topic.description}</div>
                     <div className="text-neon-cyan/40 text-[9px] font-mono mt-1">
-                      {(topic as any).requiresQuestion ? "写下困惑 →" : "免费起卦 →"}
+                      {(topic as any).requiresQuestion ? "写下问题 →" : "免费起卦 →"}
                     </div>
                   </motion.button>
                 ))}
@@ -398,13 +398,13 @@ export default function QuickDraw() {
             <div className="text-3xl mb-1">{selectedTopic.icon}</div>
             <h2 className="text-lg font-bold neon-text tracking-wider mb-2">{selectedTopic.name}</h2>
             <p className="text-foreground/30 text-xs mb-4 text-center">
-              你今天有什么困惑？一句话问清楚，解读会更准。
+              一句话问清楚，解读会更准。
             </p>
 
             <textarea
               value={topicQuestion}
               onChange={(e) => setTopicQuestion(e.target.value)}
-              placeholder="例如：我该不该离职？这段关系还有必要继续吗？我现在的处境该怎么破局？"
+              placeholder="例如：我该不该离职？这段关系还有必要继续吗？我现在该怎么破局？"
               className="w-full min-h-24 px-4 py-3 rounded-xl glass text-foreground/70 text-sm outline-none placeholder:text-foreground/15"
               maxLength={120}
             />
