@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
+import QRCode from "qrcode";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -29,6 +30,7 @@ const FONT_CDNS = [
 ];
 let fontRegular: ArrayBuffer | null = null;
 let fontBold: ArrayBuffer | null = null;
+let qrDataUrl: string | null = null;
 
 async function fetchWithTimeout(url: string, ms = 15000): Promise<ArrayBuffer> {
   const ctrl = new AbortController();
@@ -54,6 +56,18 @@ async function loadFonts() {
   return { regular: fontRegular!, bold: fontBold! };
 }
 
+async function getQrDataUrl(): Promise<string> {
+  if (qrDataUrl) return qrDataUrl;
+  // Data URL PNG so it always renders in next/og ImageResponse.
+  qrDataUrl = await QRCode.toDataURL("https://cyber.vinex.top", {
+    errorCorrectionLevel: "L",
+    margin: 0,
+    scale: 6,
+    color: { dark: "#0a0a0f", light: "#ffffff" },
+  });
+  return qrDataUrl;
+}
+
 function getCardDataUrl(cardId: number): string {
   const paddedId = String(cardId).padStart(2, "0");
   try {
@@ -68,6 +82,7 @@ export async function POST(req: NextRequest) {
   try {
     const data: CardData = await req.json();
     const fonts = await loadFonts();
+    const qrSrc = await getQrDataUrl();
 
     const cardImgSrc = getCardDataUrl(data.cardId);
     const secondaryImgSrc = data.secondaryCardId != null ? getCardDataUrl(data.secondaryCardId) : "";
@@ -178,9 +193,13 @@ export async function POST(req: NextRequest) {
                 <div style={{ display: "flex", fontSize: 14, color: "rgba(255,184,0,0.3)" }}>{data.ganZhi} · {data.wuxing}</div>
               )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", padding: 10, background: "rgba(255,255,255,0.92)", borderRadius: 14 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrSrc} width={96} height={96} style={{ display: "flex" }} />
+              </div>
               <div style={{ display: "flex", fontSize: 14, color: "rgba(0,240,255,0.3)" }}>
-                cyber.vinex.top
+                扫码打开 cyber.vinex.top
               </div>
             </div>
           </div>
