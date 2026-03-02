@@ -32,7 +32,7 @@ function OracleApp() {
         </div>
       </header>
 
-      <main className="relative z-10">
+      <main className="relative">
         <AnimatePresence mode="wait">
           {mode === "daily" && (
             <motion.div key="daily" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.3 }}>
