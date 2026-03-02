@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { motion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import type { DrawnResult, GanZhi } from "@/lib/tarot";
@@ -30,10 +30,9 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
     ref
   ) {
     const cardRef = useRef<HTMLDivElement>(null);
-    const [isSaving, setIsSaving] = useState(false);
+    const [generating, setGenerating] = useState(false);
+    const [previewSrc, setPreviewSrc] = useState<string | null>(null);
     const shareUrl = "https://cyber.vinex.top";
-    const [imageUrl, setImageUrl] = useState<string | null>(null);
-    const [imageFileName, setImageFileName] = useState<string>("");
 
     const modeMeta = useMemo(() => {
       switch (mode) {
@@ -57,178 +56,151 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
     const subForCard = subtitle ?? modeMeta.label;
     const qrText = qrHintText ?? "扫码打开 cyber.vinex.top";
 
+    const closePreview = useCallback(() => {
+      setPreviewSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }, []);
+
     useEffect(() => {
       return () => {
-        if (imageUrl) URL.revokeObjectURL(imageUrl);
+        if (previewSrc) URL.revokeObjectURL(previewSrc);
       };
-    }, [imageUrl]);
-
-    useEffect(() => {
-      if (visible && !imageUrl && !isSaving) {
-        const timer = setTimeout(() => generateImage(), 300);
-        return () => clearTimeout(timer);
-      }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visible]);
+    }, []);
 
-    const generateImage = async (): Promise<{ blob: Blob; url: string; fileName: string } | null> => {
-      if (!cardRef.current) return null;
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: "#0a0a0f",
-        scale: 2,
-        useCORS: true,
-      });
-      const fileName = `cyber-oracle-${modeMeta.label}-${result.card.name}-${dateStr}.png`;
-      const blob: Blob | null = await new Promise((resolve) =>
-        canvas.toBlob((b) => resolve(b), "image/png", 1)
-      );
-      if (!blob) return null;
-      const url = URL.createObjectURL(blob);
-      setImageUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
-      setImageFileName(fileName);
-      return { blob, url, fileName };
-    };
+    const handleSave = useCallback(async () => {
+      const el = cardRef.current;
+      if (!el || generating) return;
 
-    const save = async () => {
-      if (!cardRef.current || isSaving) return;
-      setIsSaving(true);
+      setGenerating(true);
       try {
-        const generated = await generateImage();
-        if (!generated) throw new Error("generate_failed");
+        const isMobile = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
+        const { default: html2canvas } = await import("html2canvas");
+        const canvas = await html2canvas(el, {
+          scale: isMobile ? 2 : 3,
+          backgroundColor: "#0a0a0f",
+          useCORS: true,
+        });
 
-        // Try download (best on desktop). On iOS/webviews, download may be ignored,
-        // so we also keep an in-app preview below for long-press save.
-        try {
+        const blob: Blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => {
+            if (b) resolve(b);
+            else reject(new Error("toBlob failed"));
+          }, "image/png");
+        });
+        const url = URL.createObjectURL(blob);
+        const fileName = `cyber-oracle-${modeMeta.label}-${result.card.name}-${dateStr}.png`;
+
+        if (isMobile) {
+          setPreviewSrc(url);
+        } else {
           const link = document.createElement("a");
-          link.download = generated.fileName;
-          link.href = generated.url;
+          link.download = fileName;
+          link.href = url;
           link.click();
-        } catch {
-          // ignore
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
         }
-      } catch {
-        alert("生成失败：请重试，或直接截图。");
+      } catch (err) {
+        console.error("ShareableCard generate failed:", err);
+        alert("生成失败，请直接截图保存");
       } finally {
-        setIsSaving(false);
+        setGenerating(false);
       }
-    };
+    }, [generating, modeMeta.label, result.card.name, dateStr]);
 
-    const shareImage = async () => {
-      if (isSaving) return;
-      setIsSaving(true);
+    const handleShare = useCallback(async () => {
+      const el = cardRef.current;
+      if (!el || generating) return;
+
+      setGenerating(true);
       try {
-        const generated = imageUrl ? null : await generateImage();
-        const url = generated?.url ?? imageUrl;
-        const fileName = generated?.fileName ?? imageFileName;
-        if (!url) throw new Error("no_image");
+        const { default: html2canvas } = await import("html2canvas");
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: "#0a0a0f",
+          useCORS: true,
+        });
+        const blob: Blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => {
+            if (b) resolve(b);
+            else reject(new Error("toBlob failed"));
+          }, "image/png");
+        });
+        const fileName = `cyber-oracle-${modeMeta.label}-${result.card.name}-${dateStr}.png`;
+        const file = new File([blob], fileName, { type: "image/png" });
 
-        // Share as file if possible
-        try {
-          const nav = navigator as unknown as {
-            canShare?: (data: { files: File[] }) => boolean;
-            share?: (data: { title?: string; text?: string; files?: File[]; url?: string }) => Promise<void>;
-          };
-          if (nav.share) {
-            // fetch blob from object url
-            const blob = await fetch(url).then((r) => r.blob());
-            const file = new File([blob], fileName || "cyber-oracle.png", { type: "image/png" });
-            if (!nav.canShare || nav.canShare({ files: [file] })) {
-              await nav.share({
-                title: "赛博神算子",
-                text: `${modeMeta.label} · ${result.card.name}`,
-                files: [file],
-              });
-              return;
-            }
-          }
-        } catch {
-          // fall through
-        }
-
-        // Fallback: share link
-        const text = `${modeMeta.label} · 赛博·${result.card.name} —— ${labelForCard}`;
-        if (navigator.share) {
+        const nav = navigator as unknown as {
+          canShare?: (data: { files: File[] }) => boolean;
+          share?: (data: { title?: string; text?: string; files?: File[]; url?: string }) => Promise<void>;
+        };
+        if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
+          await nav.share({
+            title: "赛博神算子",
+            text: `${modeMeta.label} · ${result.card.name}`,
+            files: [file],
+          });
+        } else if (navigator.share) {
+          const text = `${modeMeta.label} · 赛博·${result.card.name} —— ${labelForCard}`;
           await navigator.share({ title: "赛博神算子", text, url: shareUrl });
         } else {
-          await navigator.clipboard.writeText(`${text} ${shareUrl}`);
-          alert("已复制链接到剪贴板（图片可在下方预览长按保存）");
+          const text = `${modeMeta.label} · 赛博·${result.card.name} —— ${labelForCard} ${shareUrl}`;
+          await navigator.clipboard.writeText(text);
+          alert("已复制链接到剪贴板");
         }
       } catch {
-        alert("分享失败：你可以在下方预览里长按保存图片。");
+        // user cancelled or share failed
       } finally {
-        setIsSaving(false);
+        setGenerating(false);
       }
-    };
+    }, [generating, modeMeta.label, result.card.name, dateStr, labelForCard, shareUrl]);
 
-    useImperativeHandle(ref, () => ({ save }));
+    useImperativeHandle(ref, () => ({ save: handleSave }));
 
     if (!visible) return null;
 
     return (
-      <motion.div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      >
-        {/* Header */}
-        <div
-          className="shrink-0 px-4 pt-4 pb-3 flex items-center justify-between border-b border-card-border glass"
-          onClick={(e) => e.stopPropagation()}
+      <>
+        <motion.div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
         >
-          <div className="text-foreground/40 text-[10px] font-mono tracking-widest">
-            SHARE · {modeMeta.label.toUpperCase()}
+          {/* Header */}
+          <div
+            className="shrink-0 px-4 pt-4 pb-3 flex items-center justify-between border-b border-card-border glass"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-foreground/40 text-[10px] font-mono tracking-widest">
+              SHARE · {modeMeta.label.toUpperCase()}
+            </div>
+            <button
+              onClick={onClose}
+              className="text-foreground/30 text-xs font-mono px-3 py-1.5 rounded-lg glass cursor-pointer"
+            >
+              关闭
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-foreground/30 text-xs font-mono px-3 py-1.5 rounded-lg glass cursor-pointer"
-          >
-            关闭
-          </button>
-        </div>
 
-        {/* Scrollable content */}
-        <div
-          className="flex-1 overflow-y-auto px-4 py-6"
-          style={{ WebkitOverflowScrolling: "touch" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <motion.div
-            className="flex flex-col items-center max-w-sm w-full mx-auto"
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
+          {/* Scrollable card content */}
+          <div
+            className="flex-1 overflow-y-auto px-4 py-6"
+            style={{ WebkitOverflowScrolling: "touch" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Generated image preview (primary view) */}
-            {imageUrl ? (
-              <div className="w-full">
-                <div className="text-foreground/30 text-[10px] font-mono mb-2 text-center">
-                  长按图片保存 · 桌面端可右键另存
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imageUrl} alt="share-preview" className="w-full rounded-2xl border border-card-border" />
-              </div>
-            ) : (
-              <div className="w-full flex flex-col items-center justify-center py-12">
-                <motion.div
-                  className="w-10 h-10 rounded-full border-2 border-neon-cyan/30 border-t-neon-cyan"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                />
-                <p className="text-foreground/30 text-[10px] font-mono mt-3">生成分享图中...</p>
-              </div>
-            )}
-
-            {/* Hidden source for html2canvas */}
-            <div className="absolute -left-[9999px] top-0">
+            <motion.div
+              className="flex flex-col items-center max-w-sm w-full mx-auto"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+            >
               <div
                 ref={cardRef}
-                className="w-[375px] rounded-2xl overflow-hidden border border-card-border bg-[#0a0a0f]"
+                className="w-full rounded-2xl overflow-hidden border border-card-border bg-[#0a0a0f]"
               >
+                {/* Card header */}
                 <div className="px-6 pt-5 pb-3 bg-gradient-to-b from-[#0a0a0f] to-card-dark">
                   <div className="flex items-center justify-between">
                     <div className="text-foreground/20 text-[9px] font-mono tracking-[0.3em]">
@@ -261,15 +233,12 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
 
                 <div className="px-6 pb-6">
                   <div className="border-t border-dashed border-foreground/10 mb-4" />
-
                   <p className="text-foreground/70 text-sm leading-relaxed text-center mb-4">
                     {textForCard}
                   </p>
-
                   <div className="flex justify-center mb-4">
                     <div className="stamp text-xs">{result.label}</div>
                   </div>
-
                   <div className="flex items-end justify-between">
                     <div className="text-foreground/20 text-[8px] font-mono leading-relaxed">
                       <div>{dateStr}</div>
@@ -304,37 +273,61 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="h-24" />
-          </motion.div>
-        </div>
-
-        {/* Fixed action bar */}
-        <div
-          className="shrink-0 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 bg-black/60 backdrop-blur-md border-t border-card-border"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex gap-3 w-full max-w-sm mx-auto">
-            <motion.button
-              onClick={save}
-              disabled={isSaving || !imageUrl}
-              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/30 text-neon-cyan font-mono text-xs cursor-pointer disabled:opacity-50"
-              whileTap={{ scale: 0.98 }}
-            >
-              {isSaving ? "处理中..." : "💾 保存图片"}
-            </motion.button>
-            <motion.button
-              onClick={shareImage}
-              disabled={!imageUrl}
-              className="flex-1 py-3 rounded-xl bg-neon-pink/10 border border-neon-pink/30 text-neon-pink font-mono text-xs cursor-pointer disabled:opacity-50"
-              whileTap={{ scale: 0.98 }}
-            >
-              📤 分享
-            </motion.button>
+              <div className="h-24" />
+            </motion.div>
           </div>
-        </div>
-      </motion.div>
+
+          {/* Fixed action bar */}
+          <div
+            className="shrink-0 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 bg-black/60 backdrop-blur-md border-t border-card-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex gap-3 w-full max-w-sm mx-auto">
+              <motion.button
+                onClick={handleSave}
+                disabled={generating}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/30 text-neon-cyan font-mono text-xs cursor-pointer disabled:opacity-50"
+                whileTap={{ scale: 0.98 }}
+              >
+                {generating ? "⏳ 生成中..." : "💾 保存图片"}
+              </motion.button>
+              <motion.button
+                onClick={handleShare}
+                disabled={generating}
+                className="flex-1 py-3 rounded-xl bg-neon-pink/10 border border-neon-pink/30 text-neon-pink font-mono text-xs cursor-pointer disabled:opacity-50"
+                whileTap={{ scale: 0.98 }}
+              >
+                📤 分享
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Mobile full-screen image preview for long-press save */}
+        {previewSrc && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center"
+            onClick={closePreview}
+          >
+            <p className="text-foreground/50 text-xs font-mono mb-4">
+              长按图片保存到相册
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewSrc}
+              alt="分享卡片"
+              className="max-w-[90vw] max-h-[75vh] rounded-xl border border-card-border"
+            />
+            <button
+              onClick={closePreview}
+              className="mt-6 px-6 py-2.5 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer"
+            >
+              关闭预览
+            </button>
+          </div>
+        )}
+      </>
     );
   }
 );
