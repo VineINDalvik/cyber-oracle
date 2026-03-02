@@ -347,6 +347,10 @@ export default function Compatibility() {
                 </div>
               )}
             </div>
+
+            <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer mt-2">
+              ⟵ 返回
+            </button>
           </motion.div>
         )}
 
@@ -466,6 +470,10 @@ export default function Compatibility() {
                 </div>
               )}
             </div>
+
+            <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer mt-2">
+              ⟵ 返回
+            </button>
           </motion.div>
         )}
 

@@ -156,6 +156,9 @@ export default function DreamDecode() {
             <p className="text-neon-purple/60 text-xs font-mono mt-4 animate-pulse">
               正在解析梦境信号...
             </p>
+            <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer mt-6">
+              ⟵ 返回
+            </button>
           </motion.div>
         )}
 

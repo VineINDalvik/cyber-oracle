@@ -63,6 +63,14 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
       };
     }, [imageUrl]);
 
+    useEffect(() => {
+      if (visible && !imageUrl && !isSaving) {
+        const timer = setTimeout(() => generateImage(), 300);
+        return () => clearTimeout(timer);
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible]);
+
     const generateImage = async (): Promise<{ blob: Blob; url: string; fileName: string } | null> => {
       if (!cardRef.current) return null;
       const html2canvas = (await import("html2canvas")).default;
@@ -195,114 +203,108 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
           >
-            <div
-              ref={cardRef}
-              className="w-full rounded-2xl overflow-hidden border border-card-border bg-[#0a0a0f]"
-            >
-              {/* Card header */}
-              <div className="px-6 pt-5 pb-3 bg-gradient-to-b from-[#0a0a0f] to-card-dark">
-                <div className="flex items-center justify-between">
-                  <div className="text-foreground/20 text-[9px] font-mono tracking-[0.3em]">
-                    CYBER ORACLE
-                  </div>
-                  <div className="text-foreground/40 text-[10px] font-mono">
-                    {modeMeta.icon} {subForCard}
-                  </div>
+            {/* Generated image preview (primary view) */}
+            {imageUrl ? (
+              <div className="w-full">
+                <div className="text-foreground/30 text-[10px] font-mono mb-2 text-center">
+                  长按图片保存 · 桌面端可右键另存
                 </div>
-                <div className="mt-2 text-foreground/80 text-sm font-bold neon-text tracking-wider">
-                  {labelForCard}
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imageUrl} alt="share-preview" className="w-full rounded-2xl border border-card-border" />
               </div>
-
-              <div className="flex justify-center pt-8 pb-4 bg-gradient-to-b from-card-dark to-surface">
-                {secondaryCard ? (
-                  <div className="flex items-center gap-6">
-                    <CardFace cardId={result.card.id} reversed={result.isReversed} size="md" />
-                    <div className="text-neon-gold text-xl font-mono">×</div>
-                    <CardFace cardId={secondaryCard.cardId} reversed={secondaryCard.reversed} size="md" />
-                  </div>
-                ) : (
-                  <CardFace
-                    cardId={result.card.id}
-                    reversed={result.isReversed}
-                    size="lg"
-                  />
-                )}
+            ) : (
+              <div className="w-full flex flex-col items-center justify-center py-12">
+                <motion.div
+                  className="w-10 h-10 rounded-full border-2 border-neon-cyan/30 border-t-neon-cyan"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+                <p className="text-foreground/30 text-[10px] font-mono mt-3">生成分享图中...</p>
               </div>
+            )}
 
-              <div className="px-6 pb-6">
-                <div className="border-t border-dashed border-foreground/10 mb-4" />
-
-                <p className="text-foreground/70 text-sm leading-relaxed text-center mb-4">
-                  {textForCard}
-                </p>
-
-                <div className="flex justify-center mb-4">
-                  <div className="stamp text-xs">{result.label}</div>
-                </div>
-
-                <div className="flex items-end justify-between">
-                  <div className="text-foreground/20 text-[8px] font-mono leading-relaxed">
-                    <div>{dateStr}</div>
-                    {ganZhi && (
-                      <div className="text-neon-gold/30 mt-0.5">{ganZhi.gan}{ganZhi.zhi}日 · {ganZhi.wuxing}</div>
-                    )}
-                    <div className="text-neon-cyan/30 mt-0.5">
-                      赛博·{result.card.name}
-                      {result.isReversed ? " ⟲逆位" : " ⬆正位"}
+            {/* Hidden source for html2canvas */}
+            <div className="absolute -left-[9999px] top-0">
+              <div
+                ref={cardRef}
+                className="w-[375px] rounded-2xl overflow-hidden border border-card-border bg-[#0a0a0f]"
+              >
+                <div className="px-6 pt-5 pb-3 bg-gradient-to-b from-[#0a0a0f] to-card-dark">
+                  <div className="flex items-center justify-between">
+                    <div className="text-foreground/20 text-[9px] font-mono tracking-[0.3em]">
+                      CYBER ORACLE
                     </div>
-                    {secondaryCard?.name && (
-                      <div className="text-neon-purple/25 mt-0.5">
-                        赛博·{secondaryCard.name}
-                        {secondaryCard.reversed ? " ⟲逆位" : " ⬆正位"}
+                    <div className="text-foreground/40 text-[10px] font-mono">
+                      {modeMeta.icon} {subForCard}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-foreground/80 text-sm font-bold neon-text tracking-wider">
+                    {labelForCard}
+                  </div>
+                </div>
+
+                <div className="flex justify-center pt-8 pb-4 bg-gradient-to-b from-card-dark to-surface">
+                  {secondaryCard ? (
+                    <div className="flex items-center gap-6">
+                      <CardFace cardId={result.card.id} reversed={result.isReversed} size="md" />
+                      <div className="text-neon-gold text-xl font-mono">×</div>
+                      <CardFace cardId={secondaryCard.cardId} reversed={secondaryCard.reversed} size="md" />
+                    </div>
+                  ) : (
+                    <CardFace
+                      cardId={result.card.id}
+                      reversed={result.isReversed}
+                      size="lg"
+                    />
+                  )}
+                </div>
+
+                <div className="px-6 pb-6">
+                  <div className="border-t border-dashed border-foreground/10 mb-4" />
+
+                  <p className="text-foreground/70 text-sm leading-relaxed text-center mb-4">
+                    {textForCard}
+                  </p>
+
+                  <div className="flex justify-center mb-4">
+                    <div className="stamp text-xs">{result.label}</div>
+                  </div>
+
+                  <div className="flex items-end justify-between">
+                    <div className="text-foreground/20 text-[8px] font-mono leading-relaxed">
+                      <div>{dateStr}</div>
+                      {ganZhi && (
+                        <div className="text-neon-gold/30 mt-0.5">{ganZhi.gan}{ganZhi.zhi}日 · {ganZhi.wuxing}</div>
+                      )}
+                      <div className="text-neon-cyan/30 mt-0.5">
+                        赛博·{result.card.name}
+                        {result.isReversed ? " ⟲逆位" : " ⬆正位"}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="p-1.5 rounded-lg bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.06)]">
-                      <QRCodeSVG
-                        value={shareUrl}
-                        size={48}
-                        level="L"
-                        bgColor="transparent"
-                        fgColor="#0a0a0f"
-                      />
+                      {secondaryCard?.name && (
+                        <div className="text-neon-purple/25 mt-0.5">
+                          赛博·{secondaryCard.name}
+                          {secondaryCard.reversed ? " ⟲逆位" : " ⬆正位"}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-foreground/15 text-[7px] font-mono mt-1">
-                      {qrText}
+                    <div className="flex flex-col items-center">
+                      <div className="p-1.5 rounded-lg bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.06)]">
+                        <QRCodeSVG
+                          value={shareUrl}
+                          size={48}
+                          level="L"
+                          bgColor="transparent"
+                          fgColor="#0a0a0f"
+                        />
+                      </div>
+                      <div className="text-foreground/15 text-[7px] font-mono mt-1">
+                        {qrText}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            {imageUrl && (
-              <div className="w-full max-w-sm mt-4 p-3 rounded-xl glass border border-card-border">
-                <div className="text-foreground/30 text-[10px] font-mono mb-2">
-                  已生成图片（长按保存；或在桌面端右键保存）
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imageUrl} alt="share-preview" className="w-full rounded-xl border border-foreground/5" />
-                <div className="flex items-center justify-between mt-2">
-                  <a
-                    href={imageUrl}
-                    download={imageFileName || "cyber-oracle.png"}
-                    className="text-neon-cyan/70 text-[10px] font-mono underline"
-                  >
-                    下载图片
-                  </a>
-                  <button
-                    className="text-foreground/25 text-[10px] font-mono"
-                    onClick={() => setImageUrl((prev) => {
-                      if (prev) URL.revokeObjectURL(prev);
-                      return null;
-                    })}
-                  >
-                    清除预览
-                  </button>
-                </div>
-              </div>
-            )}
 
             <div className="h-24" />
           </motion.div>
@@ -316,18 +318,19 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
           <div className="flex gap-3 w-full max-w-sm mx-auto">
             <motion.button
               onClick={save}
-              disabled={isSaving}
+              disabled={isSaving || !imageUrl}
               className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/30 text-neon-cyan font-mono text-xs cursor-pointer disabled:opacity-50"
               whileTap={{ scale: 0.98 }}
             >
-              {isSaving ? "生成中..." : imageUrl ? "💾 重新生成" : "💾 生成图片"}
+              {isSaving ? "处理中..." : "💾 保存图片"}
             </motion.button>
             <motion.button
               onClick={shareImage}
-              className="flex-1 py-3 rounded-xl bg-neon-pink/10 border border-neon-pink/30 text-neon-pink font-mono text-xs cursor-pointer"
+              disabled={!imageUrl}
+              className="flex-1 py-3 rounded-xl bg-neon-pink/10 border border-neon-pink/30 text-neon-pink font-mono text-xs cursor-pointer disabled:opacity-50"
               whileTap={{ scale: 0.98 }}
             >
-              📤 分享图片
+              📤 分享
             </motion.button>
           </div>
         </div>

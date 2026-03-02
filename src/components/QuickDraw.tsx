@@ -444,6 +444,9 @@ export default function QuickDraw() {
             <p className="text-neon-purple text-xs font-mono animate-pulse">
               {selectedTopic ? `${selectedTopic.name} · 起卦布阵中...` : "混沌洗牌中..."}
             </p>
+            <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer mt-6">
+              ⟵ 返回
+            </button>
           </motion.div>
         )}
 
@@ -570,38 +573,43 @@ export default function QuickDraw() {
 
             {/* Table: 7 card backs */}
             {phase === "table" && (
-              <div className="w-full max-w-sm grid grid-cols-4 gap-2">
-                {tableCards.map((c) => {
-                  const removed = removedIds.has(c.id);
-                  const active = hoverId === c.id;
-                  return (
-                    <motion.button
-                      key={c.id}
-                      onClick={() => pickFromTable(c.id)}
-                      onMouseEnter={() => setHoverId(c.id)}
-                      onMouseLeave={() => setHoverId(null)}
-                      className="relative"
-                      style={{ opacity: removed ? 0 : 1, pointerEvents: removed ? "none" : "auto" }}
-                      whileTap={{ scale: 0.96 }}
-                      animate={{
-                        rotate: c.rot,
-                        x: c.x,
-                        y: c.y,
-                        boxShadow:
-                          active && !removed
-                            ? "0 0 0 1px rgba(0,240,255,0.25), 0 0 40px rgba(0,240,255,0.12)"
-                            : "0 0 0 1px rgba(255,255,255,0.03)",
-                      }}
-                      transition={{ type: "spring", stiffness: 260, damping: 18 }}
-                    >
-                      <CardBack size="sm" />
-                      {active && (
-                        <div className="absolute -top-1 -right-1 text-[9px] font-mono text-neon-cyan/80">✦</div>
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="w-full max-w-sm grid grid-cols-4 gap-2">
+                  {tableCards.map((c) => {
+                    const removed = removedIds.has(c.id);
+                    const active = hoverId === c.id;
+                    return (
+                      <motion.button
+                        key={c.id}
+                        onClick={() => pickFromTable(c.id)}
+                        onMouseEnter={() => setHoverId(c.id)}
+                        onMouseLeave={() => setHoverId(null)}
+                        className="relative"
+                        style={{ opacity: removed ? 0 : 1, pointerEvents: removed ? "none" : "auto" }}
+                        whileTap={{ scale: 0.96 }}
+                        animate={{
+                          rotate: c.rot,
+                          x: c.x,
+                          y: c.y,
+                          boxShadow:
+                            active && !removed
+                              ? "0 0 0 1px rgba(0,240,255,0.25), 0 0 40px rgba(0,240,255,0.12)"
+                              : "0 0 0 1px rgba(255,255,255,0.03)",
+                        }}
+                        transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                      >
+                        <CardBack size="sm" />
+                        {active && (
+                          <div className="absolute -top-1 -right-1 text-[9px] font-mono text-neon-cyan/80">✦</div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <button onClick={reset} className="text-foreground/15 text-xs font-mono cursor-pointer mt-4">
+                  ⟵ 返回
+                </button>
+              </>
             )}
 
             {/* Actions */}
