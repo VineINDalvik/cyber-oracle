@@ -17,7 +17,13 @@ const TOPICS = [
   { id: "wealth", icon: "💰", name: "财运", description: "塔罗 × 周易 × 五行 · 财运全维解读" },
   { id: "health", icon: "🏥", name: "健康", description: "塔罗 × 周易 × 五行 · 身心能量分析" },
   { id: "social", icon: "🤝", name: "人际关系", description: "塔罗 × 周易 × 五行 · 社交场域解读" },
-  { id: "dilemma", icon: "🧩", name: "困境解码", description: "输入你的问题 · 三体合一给你一个可执行的答案", requiresQuestion: true },
+  {
+    id: "open",
+    icon: "🧩",
+    name: "开放场景",
+    description: "你今天有什么困惑？写一句话 · 三体合一给你一个可执行的答案",
+    requiresQuestion: true,
+  },
 ];
 
 export default function QuickDraw() {
@@ -182,8 +188,16 @@ export default function QuickDraw() {
   const handleTopicSelect = (topic: typeof TOPICS[0]) => {
     setSelectedTopic(topic);
     setTopicQuestion("");
-    setView("topicQuestion");
-    setPhase("select");
+
+    // Only "open scenario" uses custom question step.
+    if ((topic as any).requiresQuestion) {
+      setView("topicQuestion");
+      setPhase("select");
+      return;
+    }
+
+    // Other 5 topics: no question step (one-tap start)
+    startTopicFortune(topic);
   };
 
   const reset = () => {
@@ -361,7 +375,9 @@ export default function QuickDraw() {
                     <div className="text-xl mb-1">{topic.icon}</div>
                     <div className="text-foreground/70 text-xs font-bold mb-0.5">{topic.name}</div>
                     <div className="text-foreground/20 text-[9px] leading-tight">{topic.description}</div>
-                    <div className="text-neon-cyan/40 text-[9px] font-mono mt-1">免费起卦 →</div>
+                    <div className="text-neon-cyan/40 text-[9px] font-mono mt-1">
+                      {(topic as any).requiresQuestion ? "写下困惑 →" : "免费起卦 →"}
+                    </div>
                   </motion.button>
                 ))}
               </div>
@@ -382,13 +398,13 @@ export default function QuickDraw() {
             <div className="text-3xl mb-1">{selectedTopic.icon}</div>
             <h2 className="text-lg font-bold neon-text tracking-wider mb-2">{selectedTopic.name}</h2>
             <p className="text-foreground/30 text-xs mb-4 text-center">
-              {selectedTopic.requiresQuestion ? "输入一个具体问题，解读会更准" : "可选：输入一个问题，让解读更贴近你的处境"}
+              你今天有什么困惑？一句话问清楚，解读会更准。
             </p>
 
             <textarea
               value={topicQuestion}
               onChange={(e) => setTopicQuestion(e.target.value)}
-              placeholder={selectedTopic.requiresQuestion ? "例如：我该不该离职？这段关系还有必要继续吗？" : "（可不填）一句话说清你想问什么"}
+              placeholder="例如：我该不该离职？这段关系还有必要继续吗？我现在的处境该怎么破局？"
               className="w-full min-h-24 px-4 py-3 rounded-xl glass text-foreground/70 text-sm outline-none placeholder:text-foreground/15"
               maxLength={120}
             />
@@ -398,10 +414,10 @@ export default function QuickDraw() {
 
             <motion.button
               onClick={() => {
-                if ((selectedTopic as any).requiresQuestion && topicQuestion.trim().length < 3) return;
+                if (topicQuestion.trim().length < 3) return;
                 startTopicFortune(selectedTopic);
               }}
-              disabled={(selectedTopic as any).requiresQuestion && topicQuestion.trim().length < 3}
+              disabled={topicQuestion.trim().length < 3}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-neon-cyan/15 to-neon-purple/15 border border-neon-cyan/20 text-neon-cyan text-sm font-mono cursor-pointer mt-4 disabled:opacity-40"
               whileTap={{ scale: 0.98 }}
             >
