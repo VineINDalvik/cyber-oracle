@@ -300,15 +300,17 @@ export default function DailySign() {
         </motion.div>
       )}
 
-      {/* Derivation */}
-      <motion.div
-        className="text-center text-foreground/15 text-[9px] font-mono mb-4 max-w-xs leading-relaxed"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.7 }}
-      >
-        {gz.gan}{gz.zhi}日 → {gz.wuxing}（{gz.wuxingElement}行）→ 塔罗{result.card.element}元素 → {picked ? `赛博·${result.card.name}` : "等待你选牌"}
-      </motion.div>
+      {/* Derivation (show only after pick) */}
+      {picked && (
+        <motion.div
+          className="text-center text-foreground/15 text-[9px] font-mono mb-4 max-w-xs leading-relaxed"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+        >
+          {gz.gan}{gz.zhi}日 → {gz.wuxing}（{gz.wuxingElement}行）→ 塔罗{result.card.element}元素 → 赛博·{result.card.name}
+        </motion.div>
+      )}
 
       {/* Teaser for paid reading */}
       {!reading && picked && (
