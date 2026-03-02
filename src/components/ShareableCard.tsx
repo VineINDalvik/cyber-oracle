@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useMemo, useState, forwardRef, useImperativeHandle } from "react";
 import { motion } from "framer-motion";
-import { QRCodeSVG } from "qrcode.react";
 import type { DrawnResult, GanZhi } from "@/lib/tarot";
 import CardFace from "./CardFace";
 
@@ -26,35 +25,25 @@ export interface ShareableCardHandle {
 
 const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
   function ShareableCard(
-    { result, mode, dateStr, visible, onClose, ganZhi, title, subtitle, contextText, secondaryCard, qrHintText },
+    { result, mode, dateStr, visible, onClose, ganZhi, title, subtitle, contextText, secondaryCard },
     ref
   ) {
-    const cardRef = useRef<HTMLDivElement>(null);
     const [generating, setGenerating] = useState(false);
     const [previewSrc, setPreviewSrc] = useState<string | null>(null);
-    const shareUrl = "https://cyber.vinex.top";
 
     const modeMeta = useMemo(() => {
       switch (mode) {
-        case "daily":
-          return { icon: "📅", label: "每日签" };
-        case "dream":
-          return { icon: "🌙", label: "梦境解码" };
-        case "topic":
-          return { icon: "🎯", label: "主题占卜" };
-        case "spread":
-          return { icon: "🎴", label: "牌阵占卜" };
-        case "compat":
-          return { icon: "💞", label: "双人合盘" };
-        default:
-          return { icon: "🔮", label: "赛博占卜" };
+        case "daily": return { icon: "📅", label: "每日签" };
+        case "dream": return { icon: "🌙", label: "梦境解码" };
+        case "topic": return { icon: "🎯", label: "主题占卜" };
+        case "spread": return { icon: "🎴", label: "牌阵占卜" };
+        case "compat": return { icon: "💞", label: "双人合盘" };
+        default: return { icon: "🔮", label: "赛博占卜" };
       }
     }, [mode]);
 
     const textForCard = contextText ?? result.fortune;
     const labelForCard = title ?? result.label;
-    const subForCard = subtitle ?? modeMeta.label;
-    const qrText = qrHintText ?? "扫码打开 cyber.vinex.top";
 
     const closePreview = useCallback(() => {
       setPreviewSrc((prev) => {
@@ -63,34 +52,43 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
       });
     }, []);
 
-    useEffect(() => {
-      return () => {
-        if (previewSrc) URL.revokeObjectURL(previewSrc);
+    const generateViaApi = useCallback(async (): Promise<string | null> => {
+      const body = {
+        cardId: result.card.id,
+        cardName: result.card.name,
+        cyberName: result.card.cyberName,
+        isReversed: result.isReversed,
+        fortune: textForCard,
+        label: labelForCard,
+        mode,
+        modeLabel: subtitle ?? modeMeta.label,
+        dateStr,
+        ganZhi: ganZhi ? `${ganZhi.gan}${ganZhi.zhi}日` : undefined,
+        wuxing: ganZhi?.wuxing,
+        secondaryCardId: secondaryCard?.cardId,
+        secondaryCardName: secondaryCard?.name,
+        secondaryReversed: secondaryCard?.reversed,
       };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+
+      const res = await fetch("/api/share-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error("API error");
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    }, [result, textForCard, labelForCard, mode, subtitle, modeMeta.label, dateStr, ganZhi, secondaryCard]);
 
     const handleSave = useCallback(async () => {
-      const el = cardRef.current;
-      if (!el || generating) return;
-
+      if (generating) return;
       setGenerating(true);
       try {
-        const isMobile = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
-        const { default: html2canvas } = await import("html2canvas");
-        const canvas = await html2canvas(el, {
-          scale: isMobile ? 2 : 3,
-          backgroundColor: "#0a0a0f",
-          useCORS: true,
-        });
+        const url = await generateViaApi();
+        if (!url) throw new Error("empty");
 
-        const blob: Blob = await new Promise((resolve, reject) => {
-          canvas.toBlob((b) => {
-            if (b) resolve(b);
-            else reject(new Error("toBlob failed"));
-          }, "image/png");
-        });
-        const url = URL.createObjectURL(blob);
+        const isMobile = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
         const fileName = `cyber-oracle-${modeMeta.label}-${result.card.name}-${dateStr}.png`;
 
         if (isMobile) {
@@ -102,59 +100,43 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
           link.click();
           setTimeout(() => URL.revokeObjectURL(url), 5000);
         }
-      } catch (err) {
-        console.error("ShareableCard generate failed:", err);
+      } catch {
         alert("生成失败，请直接截图保存");
       } finally {
         setGenerating(false);
       }
-    }, [generating, modeMeta.label, result.card.name, dateStr]);
+    }, [generating, generateViaApi, modeMeta.label, result.card.name, dateStr]);
 
     const handleShare = useCallback(async () => {
-      const el = cardRef.current;
-      if (!el || generating) return;
-
+      if (generating) return;
       setGenerating(true);
       try {
-        const { default: html2canvas } = await import("html2canvas");
-        const canvas = await html2canvas(el, {
-          scale: 2,
-          backgroundColor: "#0a0a0f",
-          useCORS: true,
-        });
-        const blob: Blob = await new Promise((resolve, reject) => {
-          canvas.toBlob((b) => {
-            if (b) resolve(b);
-            else reject(new Error("toBlob failed"));
-          }, "image/png");
-        });
+        const url = await generateViaApi();
+        if (!url) throw new Error("empty");
+
         const fileName = `cyber-oracle-${modeMeta.label}-${result.card.name}-${dateStr}.png`;
+        const blob = await fetch(url).then((r) => r.blob());
         const file = new File([blob], fileName, { type: "image/png" });
 
         const nav = navigator as unknown as {
-          canShare?: (data: { files: File[] }) => boolean;
-          share?: (data: { title?: string; text?: string; files?: File[]; url?: string }) => Promise<void>;
+          canShare?: (d: { files: File[] }) => boolean;
+          share?: (d: { title?: string; text?: string; files?: File[]; url?: string }) => Promise<void>;
         };
         if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
-          await nav.share({
-            title: "赛博神算子",
-            text: `${modeMeta.label} · ${result.card.name}`,
-            files: [file],
-          });
+          await nav.share({ title: "赛博神算子", text: `${modeMeta.label} · ${result.card.name}`, files: [file] });
         } else if (navigator.share) {
-          const text = `${modeMeta.label} · 赛博·${result.card.name} —— ${labelForCard}`;
-          await navigator.share({ title: "赛博神算子", text, url: shareUrl });
+          await navigator.share({ title: "赛博神算子", text: `${modeMeta.label} · 赛博·${result.card.name}`, url: "https://cyber.vinex.top" });
         } else {
-          const text = `${modeMeta.label} · 赛博·${result.card.name} —— ${labelForCard} ${shareUrl}`;
-          await navigator.clipboard.writeText(text);
+          await navigator.clipboard.writeText(`赛博神算子 · ${modeMeta.label} · ${result.card.name} https://cyber.vinex.top`);
           alert("已复制链接到剪贴板");
         }
+        URL.revokeObjectURL(url);
       } catch {
-        // user cancelled or share failed
+        // cancelled or failed
       } finally {
         setGenerating(false);
       }
-    }, [generating, modeMeta.label, result.card.name, dateStr, labelForCard, shareUrl]);
+    }, [generating, generateViaApi, modeMeta.label, result.card.name, dateStr]);
 
     useImperativeHandle(ref, () => ({ save: handleSave }));
 
@@ -185,7 +167,7 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
             </div>
           </div>
 
-          {/* Scrollable card content */}
+          {/* Card preview (HTML, instant) */}
           <div
             className="flex-1 overflow-y-auto px-4 py-6"
             style={{ WebkitOverflowScrolling: "touch" }}
@@ -196,23 +178,14 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
             >
-              <div
-                ref={cardRef}
-                className="w-full rounded-2xl overflow-hidden border border-card-border bg-[#0a0a0f]"
-              >
+              <div className="w-full rounded-2xl overflow-hidden border border-card-border bg-[#0a0a0f]">
                 {/* Card header */}
                 <div className="px-6 pt-5 pb-3 bg-gradient-to-b from-[#0a0a0f] to-card-dark">
                   <div className="flex items-center justify-between">
-                    <div className="text-foreground/20 text-[9px] font-mono tracking-[0.3em]">
-                      CYBER ORACLE
-                    </div>
-                    <div className="text-foreground/40 text-[10px] font-mono">
-                      {modeMeta.icon} {subForCard}
-                    </div>
+                    <div className="text-foreground/20 text-[9px] font-mono tracking-[0.3em]">CYBER ORACLE</div>
+                    <div className="text-foreground/40 text-[10px] font-mono">{modeMeta.icon} {subtitle ?? modeMeta.label}</div>
                   </div>
-                  <div className="mt-2 text-foreground/80 text-sm font-bold neon-text tracking-wider">
-                    {labelForCard}
-                  </div>
+                  <div className="mt-2 text-foreground/80 text-sm font-bold neon-text tracking-wider">{labelForCard}</div>
                 </div>
 
                 <div className="flex justify-center pt-8 pb-4 bg-gradient-to-b from-card-dark to-surface">
@@ -223,53 +196,26 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
                       <CardFace cardId={secondaryCard.cardId} reversed={secondaryCard.reversed} size="md" />
                     </div>
                   ) : (
-                    <CardFace
-                      cardId={result.card.id}
-                      reversed={result.isReversed}
-                      size="lg"
-                    />
+                    <CardFace cardId={result.card.id} reversed={result.isReversed} size="lg" />
                   )}
                 </div>
 
                 <div className="px-6 pb-6">
                   <div className="border-t border-dashed border-foreground/10 mb-4" />
-                  <p className="text-foreground/70 text-sm leading-relaxed text-center mb-4">
-                    {textForCard}
-                  </p>
+                  <p className="text-foreground/70 text-sm leading-relaxed text-center mb-4">{textForCard}</p>
                   <div className="flex justify-center mb-4">
                     <div className="stamp text-xs">{result.label}</div>
                   </div>
                   <div className="flex items-end justify-between">
                     <div className="text-foreground/20 text-[8px] font-mono leading-relaxed">
                       <div>{dateStr}</div>
-                      {ganZhi && (
-                        <div className="text-neon-gold/30 mt-0.5">{ganZhi.gan}{ganZhi.zhi}日 · {ganZhi.wuxing}</div>
-                      )}
-                      <div className="text-neon-cyan/30 mt-0.5">
-                        赛博·{result.card.name}
-                        {result.isReversed ? " ⟲逆位" : " ⬆正位"}
-                      </div>
+                      {ganZhi && <div className="text-neon-gold/30 mt-0.5">{ganZhi.gan}{ganZhi.zhi}日 · {ganZhi.wuxing}</div>}
+                      <div className="text-neon-cyan/30 mt-0.5">赛博·{result.card.name} {result.isReversed ? "⟲逆位" : "⬆正位"}</div>
                       {secondaryCard?.name && (
-                        <div className="text-neon-purple/25 mt-0.5">
-                          赛博·{secondaryCard.name}
-                          {secondaryCard.reversed ? " ⟲逆位" : " ⬆正位"}
-                        </div>
+                        <div className="text-neon-purple/25 mt-0.5">赛博·{secondaryCard.name} {secondaryCard.reversed ? "⟲逆位" : "⬆正位"}</div>
                       )}
                     </div>
-                    <div className="flex flex-col items-center">
-                      <div className="p-1.5 rounded-lg bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.06)]">
-                        <QRCodeSVG
-                          value={shareUrl}
-                          size={48}
-                          level="L"
-                          bgColor="transparent"
-                          fgColor="#0a0a0f"
-                        />
-                      </div>
-                      <div className="text-foreground/15 text-[7px] font-mono mt-1">
-                        {qrText}
-                      </div>
-                    </div>
+                    <div className="text-foreground/15 text-[8px] font-mono">cyber.vinex.top</div>
                   </div>
                 </div>
               </div>
@@ -304,20 +250,21 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
           </div>
         </motion.div>
 
-        {/* Mobile full-screen image preview for long-press save */}
+        {/* Mobile full-screen image preview */}
         {previewSrc && (
           <div
-            className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center"
+            className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center p-4"
             onClick={closePreview}
           >
-            <p className="text-foreground/50 text-xs font-mono mb-4">
+            <p className="text-foreground/50 text-xs font-mono mb-4 animate-pulse">
               长按图片保存到相册
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewSrc}
               alt="分享卡片"
-              className="max-w-[90vw] max-h-[75vh] rounded-xl border border-card-border"
+              className="max-w-full max-h-[75vh] rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             />
             <button
               onClick={closePreview}
