@@ -229,7 +229,7 @@ export default function DreamDecode() {
                 ⟳ 解析新梦境
               </button>
               <button onClick={() => setShowShare(true)} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon-purple/15 to-neon-pink/15 border border-neon-purple/20 text-neon-purple text-xs font-mono cursor-pointer">
-                💾 保存
+                💾 保存分享图
               </button>
             </div>
 

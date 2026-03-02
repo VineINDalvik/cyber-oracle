@@ -673,7 +673,7 @@ export default function QuickDraw() {
                       {reading ? (showReading ? "📖 收起" : "📖 查看") : "📖 查看完整解读"}
                     </motion.button>
                     {shareResult && (
-                      <motion.button onClick={() => setShowShare(true)} className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾</motion.button>
+                      <motion.button onClick={() => setShowShare(true)} className="flex-1 py-3 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾 保存分享图</motion.button>
                     )}
                   </div>
                 )}
@@ -685,7 +685,7 @@ export default function QuickDraw() {
                       {showReading ? "📖 收起深度解读" : "📖 查看深度解读"}
                     </motion.button>
                     {shareResult && (
-                      <motion.button onClick={() => setShowShare(true)} className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾</motion.button>
+                      <motion.button onClick={() => setShowShare(true)} className="flex-1 py-3 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer" whileTap={{ scale: 0.98 }}>💾 保存分享图</motion.button>
                     )}
                   </div>
                 )}

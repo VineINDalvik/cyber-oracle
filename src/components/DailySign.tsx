@@ -190,18 +190,16 @@ export default function DailySign() {
           </span>
         </div>
 
-        <div className="flex items-center justify-center gap-2 mt-3">
-          <motion.button
-            onClick={() => openHiddenProfile()}
-            className="px-3 py-1.5 rounded-lg glass text-foreground/40 text-[10px] font-mono cursor-pointer"
-            whileTap={{ scale: 0.98 }}
-          >
-            ⚙️ 个性化参数
-          </motion.button>
-          <div className="text-foreground/15 text-[9px] font-mono">
-            生辰/心情会影响你抽到的牌
-          </div>
-        </div>
+        <motion.button
+          onClick={() => openHiddenProfile()}
+          className="mt-3 px-4 py-2 rounded-xl bg-gradient-to-r from-neon-purple/10 to-neon-cyan/10 border border-neon-purple/15 text-foreground/50 text-[11px] font-mono cursor-pointer"
+          whileTap={{ scale: 0.98 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+        >
+          ✨ 输入生辰八字，抽到专属你的牌
+        </motion.button>
       </motion.div>
 
       {/* Card */}
@@ -353,10 +351,10 @@ export default function DailySign() {
         </motion.button>
         <motion.button
           onClick={() => (picked ? setShowShare(true) : null)}
-          className="py-3 px-4 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer"
+          className="flex-1 py-3 rounded-xl glass text-foreground/40 text-xs font-mono cursor-pointer"
           whileTap={{ scale: 0.98 }}
         >
-          💾
+          💾 保存分享图
         </motion.button>
       </motion.div>
 
@@ -488,25 +486,39 @@ export default function DailySign() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <div className="text-foreground/30 text-[10px] font-mono">生辰（年月日）</div>
-                    <input
-                      value={editingProfile.birthDate ?? ""}
-                      onChange={(e) => setEditingProfile((p) => ({ ...p, birthDate: e.target.value || undefined }))}
-                      placeholder="YYYY-MM-DD"
-                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none placeholder:text-foreground/15"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-foreground/30 text-[10px] font-mono">时辰</div>
-                    <input
-                      value={editingProfile.birthTime ?? ""}
-                      onChange={(e) => setEditingProfile((p) => ({ ...p, birthTime: e.target.value || undefined }))}
-                      placeholder="例如 23:30 / 子时"
-                      className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none placeholder:text-foreground/15"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <div className="text-foreground/30 text-[10px] font-mono">生辰（年月日）</div>
+                  <input
+                    type="date"
+                    value={editingProfile.birthDate ?? ""}
+                    onChange={(e) => setEditingProfile((p) => ({ ...p, birthDate: e.target.value || undefined }))}
+                    className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none"
+                    max={new Date().toISOString().split("T")[0]}
+                    min="1940-01-01"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-foreground/30 text-[10px] font-mono">出生时辰</div>
+                  <select
+                    value={editingProfile.birthTime ?? ""}
+                    onChange={(e) => setEditingProfile((p) => ({ ...p, birthTime: e.target.value || undefined }))}
+                    className="w-full px-3 py-2 rounded-lg glass text-foreground/70 text-xs font-mono outline-none"
+                  >
+                    <option value="">不设置</option>
+                    <option value="子时">子时（23:00-01:00）</option>
+                    <option value="丑时">丑时（01:00-03:00）</option>
+                    <option value="寅时">寅时（03:00-05:00）</option>
+                    <option value="卯时">卯时（05:00-07:00）</option>
+                    <option value="辰时">辰时（07:00-09:00）</option>
+                    <option value="巳时">巳时（09:00-11:00）</option>
+                    <option value="午时">午时（11:00-13:00）</option>
+                    <option value="未时">未时（13:00-15:00）</option>
+                    <option value="申时">申时（15:00-17:00）</option>
+                    <option value="酉时">酉时（17:00-19:00）</option>
+                    <option value="戌时">戌时（19:00-21:00）</option>
+                    <option value="亥时">亥时（21:00-23:00）</option>
+                  </select>
                 </div>
 
                 <div className="flex gap-3 pt-1">
