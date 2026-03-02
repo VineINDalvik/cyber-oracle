@@ -174,15 +174,15 @@ const ShareableCard = forwardRef<ShareableCardHandle, ShareableCardProps>(
             className="shrink-0 px-4 pt-4 pb-3 flex items-center justify-between border-b border-card-border glass"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-foreground/40 text-[10px] font-mono tracking-widest">
-              SHARE · {modeMeta.label.toUpperCase()}
-            </div>
             <button
               onClick={onClose}
-              className="text-foreground/30 text-xs font-mono px-3 py-1.5 rounded-lg glass cursor-pointer"
+              className="flex items-center gap-1.5 text-neon-cyan/70 text-xs font-mono px-3 py-1.5 rounded-lg glass cursor-pointer"
             >
-              关闭
+              ⟵ 返回
             </button>
+            <div className="text-foreground/30 text-[10px] font-mono tracking-widest">
+              {modeMeta.icon} {modeMeta.label}
+            </div>
           </div>
 
           {/* Scrollable card content */}
