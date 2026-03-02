@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     const cardImgSrc = getCardDataUrl(data.cardId);
     const secondaryImgSrc = data.secondaryCardId != null ? getCardDataUrl(data.secondaryCardId) : "";
     const isCompat = !!secondaryImgSrc;
+    const qrSize = isCompat ? 84 : 96;
 
     return new ImageResponse(
       (
@@ -99,7 +100,8 @@ export async function POST(req: NextRequest) {
             background: "linear-gradient(180deg, #0a0a0f 0%, #111128 50%, #0a0a0f 100%)",
             fontFamily: "NotoSansSC",
             color: "#ffffff",
-            padding: "48px 48px 40px",
+            // Slightly larger bottom padding to avoid QR clipping on some renders
+            padding: "48px 48px 56px",
           }}
         >
           {/* Header */}
@@ -194,9 +196,9 @@ export async function POST(req: NextRequest) {
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", padding: 10, background: "rgba(255,255,255,0.92)", borderRadius: 14 }}>
+              <div style={{ display: "flex", padding: 8, background: "rgba(255,255,255,0.92)", borderRadius: 14 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrSrc} width={96} height={96} style={{ display: "flex" }} />
+                <img src={qrSrc} width={qrSize} height={qrSize} style={{ display: "flex", objectFit: "contain" }} />
               </div>
               <div style={{ display: "flex", fontSize: 14, color: "rgba(0,240,255,0.3)" }}>
                 扫码打开 cyber.vinex.top
@@ -207,7 +209,7 @@ export async function POST(req: NextRequest) {
       ),
       {
         width: 600,
-        height: isCompat ? 700 : 1000,
+        height: isCompat ? 760 : 1000,
         fonts: [
           { name: "NotoSansSC", data: fonts.regular, weight: 400 as const, style: "normal" as const },
           { name: "NotoSansSC", data: fonts.bold, weight: 700 as const, style: "normal" as const },
